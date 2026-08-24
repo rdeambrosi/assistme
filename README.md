@@ -6,31 +6,42 @@ Stack: Next.js (App Router) + TypeScript + Supabase, deploy en Vercel.
 
 ## Qué hay en este repo por ahora
 
-Esto es un scaffold parcial — todavía no es un proyecto Next.js corriendo,
-es la base de datos + los tipos ya definidos:
+Proyecto Next.js (App Router) con el dashboard de la cola de revisión ya
+portado del mockup de diseño (datos mock, sin conectores reales todavía):
 
 ```
 comms-hub/
-├── supabase/
-│   └── migrations/
-│       └── 0001_init.sql      # schema completo: messages, contacts, sync_state,
-│                               # telegram_chat_cursors, skills, message_skills,
-│                               # context_chunks (pgvector para RAG)
-└── packages/
-    └── db/
-        ├── types.ts            # tipos TypeScript alineados al schema
-        ├── client.ts           # cliente Supabase + queries tipadas
-        └── package.json
+├── app/
+│   ├── layout.tsx              # fuentes (IBM Plex Mono + Inter) y metadata
+│   ├── page.tsx                # monta <DashboardApp />
+│   └── globals.css             # design tokens + estilos del blotter
+├── components/
+│   ├── DashboardApp.tsx        # cola + draft + contexto + vista de contactos
+│   └── icons.tsx
+├── lib/
+│   ├── mock-data.ts            # datos de ejemplo (cola, contactos, skills)
+│   └── db/
+│       ├── types.ts             # tipos TypeScript alineados al schema
+│       └── client.ts            # cliente Supabase + queries tipadas
+└── supabase/
+    └── migrations/
+        └── 0001_init.sql       # schema completo: messages, contacts, sync_state,
+                                  # telegram_chat_cursors, skills, message_skills,
+                                  # context_chunks (pgvector para RAG)
 ```
+
+Next.js simple, sin monorepo — `lib/db` reemplaza lo que antes era
+`packages/db`.
 
 ## Falta armar
 
-- [ ] Scaffold de Next.js (`apps/web`) — dashboard de revisión + API routes
-- [ ] Conectores: `packages/connectors/{gmail,telegram,whatsapp}`
+- [ ] Conectar el dashboard a datos reales de Supabase (reemplazar `lib/mock-data.ts`)
+- [ ] Conectores: `lib/connectors/{gmail,telegram,whatsapp}`
 - [ ] Ensamblador de prompt + llamada a Claude API (structured output)
 - [ ] Cron de Vercel (`vercel.json`) + endpoint `/api/sync`
 - [ ] Webhook de WhatsApp Business API
 - [ ] Integración de Google Calendar (creación de eventos + Meet)
+- [ ] Capa de voz (STT/TTS) para "Responder con audio"
 
 ## Setup
 
@@ -46,9 +57,9 @@ SUPABASE_SERVICE_ROLE_KEY=
 ANTHROPIC_API_KEY=
 ```
 
-4. `packages/db` asume un monorepo tipo Turborepo. Si arrancás con un Next.js
-   simple, movés `types.ts` y `client.ts` a `apps/web/lib/db/` y ajustás los
-   imports relativos — no hace falta decidir la estructura de monorepo hoy.
+4. `npm install && npm run dev` para levantar el dashboard en `localhost:3000`
+   (por ahora corre 100% con `lib/mock-data.ts`, no necesita las env vars de
+   arriba para el modo desarrollo visual).
 
 ## Notas de diseño
 
