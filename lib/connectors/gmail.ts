@@ -82,7 +82,9 @@ async function importMessage(channel: GmailChannel, msg: gmail_v1.Schema$Message
   const body = extractBody(msg.payload) ?? msg.snippet ?? '';
   const content = `${subject}\n\n${body}`.trim();
 
+  console.log(`[gmail:${channel}] buscando/creando contacto para ${address}`);
   const contact = await findOrCreateContactByChannel({ channel, address }, name);
+  console.log(`[gmail:${channel}] contact_id=${contact.id}, insertando mensaje ${msg.id}`);
 
   await insertRawMessage({
     channel,
@@ -101,6 +103,7 @@ export interface GmailSyncResult {
 }
 
 export async function syncGmailAccount(channel: GmailChannel): Promise<GmailSyncResult> {
+  console.log(`[gmail:${channel}] sync start`);
   const gmail = gmailClientFor(channel);
   const state = await getSyncState(channel as Channel);
   let imported = 0;
@@ -114,8 +117,10 @@ export async function syncGmailAccount(channel: GmailChannel): Promise<GmailSync
         labelIds: ['INBOX'],
       });
       const ids = list.data.messages ?? [];
+      console.log(`[gmail:${channel}] full sync: ${ids.length} mensajes en INBOX`);
       for (const { id } of ids) {
         if (!id) continue;
+        console.log(`[gmail:${channel}] importando mensaje ${id}`);
         const full = await gmail.users.messages.get({ userId: 'me', id, format: 'full' });
         await importMessage(channel, full.data);
         imported++;
