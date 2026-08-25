@@ -132,10 +132,12 @@ export async function insertRawMessage(msg: {
   content: string;
   received_at: string;
 }): Promise<Message> {
-  // upsert por (channel, external_id) para que re-correr el sync sea idempotente
+  // upsert por (channel, external_id) para que re-correr el sync sea idempotente.
+  // ignoreDuplicates:false (default) para que siempre devuelva la fila —
+  // con true, Postgres no devuelve nada en un conflicto y .single() explota.
   const { data, error } = await getSupabase()
     .from('messages')
-    .upsert(msg, { onConflict: 'channel,external_id', ignoreDuplicates: true })
+    .upsert(msg, { onConflict: 'channel,external_id' })
     .select()
     .single();
   if (error) throw error;
