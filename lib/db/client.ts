@@ -7,6 +7,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import type {
   Channel,
   Contact,
+  ContactChannelRef,
   ContextChunk,
   DraftResult,
   Message,
@@ -90,6 +91,33 @@ export async function updateContactNotes(contactId: string, notes: string): Prom
     .update({ context_notes: notes })
     .eq('id', contactId);
   if (error) throw error;
+}
+
+// Busca un contacto que ya tenga esta direccion/chat_id registrado en `channels`;
+// si no existe, crea uno nuevo con ese canal. Usado por los connectors para
+// mapear un mensaje entrante a un contact_id sin duplicar contactos.
+export async function findOrCreateContactByChannel(
+  ref: ContactChannelRef,
+  fallbackName: string
+): Promise<Contact> {
+  const supabase = getSupabase();
+  const matchKey = ref.channel === 'telegram' || ref.channel === 'whatsapp' ? 'chat_id' : 'address';
+  const matchValue = ref.channel === 'telegram' || ref.channel === 'whatsapp' ? ref.chat_id : ref.address;
+
+  const { data: existing, error: findErr } = await supabase
+    .from('contacts')
+    .select('*')
+    .contains('channels', [{ channel: ref.channel, [matchKey]: matchValue }]);
+  if (findErr) throw findErr;
+  if (existing && existing.length > 0) return existing[0] as Contact;
+
+  const { data: created, error: createErr } = await supabase
+    .from('contacts')
+    .insert({ name: fallbackName, channels: [ref] })
+    .select()
+    .single();
+  if (createErr) throw createErr;
+  return created as Contact;
 }
 
 // ---------------------------------------------------------------------------
