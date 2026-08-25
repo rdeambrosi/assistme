@@ -83,7 +83,7 @@ const server = createServer(async (req, res) => {
     console.log(`\n✅ Refresh token para "${label}":\n`);
     console.log(tokens.refresh_token ?? "(no vino refresh_token — revisa que uses prompt=consent y access_type=offline)");
     console.log(
-      `\nGuardalo como la env var correspondiente (ej: GMAIL_${label.toUpperCase()}_REFRESH_TOKEN) en Vercel y/o .env.local.\n`
+      `\nGuardalo como la env var ${label.toUpperCase()}_REFRESH_TOKEN en Vercel y/o .env.local.\n`
     );
   } catch (err) {
     console.error("Error canjeando el code por tokens:", err);
