@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "gmail:auth": "tsx scripts/gmail-auth.ts"
+    "gmail:auth": "tsx scripts/gmail-auth.ts",
+    "telegram:auth": "tsx scripts/telegram-auth.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
@@ -17,6 +18,7 @@
     "next": "16.3.2",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "teleproto": "^1.229.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -26,6 +28,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.2",
+    "input": "^1.0.1",
     "tailwindcss": "^4",
     "tsx": "^4.23.12",
     "typescript": "^5"
