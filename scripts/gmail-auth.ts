@@ -13,9 +13,11 @@
 // Requiere GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET en .env.local
 // (`vercel env pull .env.local` los trae).
 
-import "dotenv/config";
+import { config } from "dotenv";
 import { createServer } from "node:http";
 import { google } from "googleapis";
+
+config({ path: ".env.local" });
 
 const REDIRECT_URI = "http://localhost:3000/oauth2callback";
 const SCOPES = [
