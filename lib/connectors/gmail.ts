@@ -169,10 +169,24 @@ export async function syncGmailAccount(channel: GmailChannel): Promise<GmailSync
     await updateSyncState(channel as Channel, {
       last_run_at: new Date().toISOString(),
       last_status: 'error',
-      last_error: err instanceof Error ? err.message : String(err),
+      last_error: serializeError(err),
     });
     throw err;
   }
+}
+
+function serializeError(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'object' && err !== null) {
+    const maybeMessage = (err as { message?: unknown }).message;
+    if (typeof maybeMessage === 'string') return maybeMessage;
+    try {
+      return JSON.stringify(err);
+    } catch {
+      return String(err);
+    }
+  }
+  return String(err);
 }
 
 export async function syncAllGmailAccounts(): Promise<GmailSyncResult[]> {
