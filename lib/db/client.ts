@@ -104,12 +104,16 @@ export async function findOrCreateContactByChannel(
   const matchKey = ref.channel === 'telegram' || ref.channel === 'whatsapp' ? 'chat_id' : 'address';
   const matchValue = ref.channel === 'telegram' || ref.channel === 'whatsapp' ? ref.chat_id : ref.address;
 
-  const { data: existing, error: findErr } = await supabase
-    .from('contacts')
-    .select('*')
-    .contains('channels', [{ channel: ref.channel, [matchKey]: matchValue }]);
+  // Se trae todo `contacts` y se filtra en JS en vez de un query jsonb `cs.`
+  // sobre `channels` (columna jsonb array) — para el volumen de contactos
+  // personales de este proyecto esto alcanza y evita la serializacion
+  // finicky de ese operador en supabase-js.
+  const { data: all, error: findErr } = await supabase.from('contacts').select('*');
   if (findErr) throw findErr;
-  if (existing && existing.length > 0) return existing[0] as Contact;
+  const existing = (all as Contact[] | null)?.find((c) =>
+    c.channels.some((ch) => ch.channel === ref.channel && ch[matchKey] === matchValue)
+  );
+  if (existing) return existing;
 
   const { data: created, error: createErr } = await supabase
     .from('contacts')
