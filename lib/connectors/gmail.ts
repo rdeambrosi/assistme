@@ -50,6 +50,30 @@ function decodeBase64Url(data: string): string {
   return Buffer.from(data, 'base64url').toString('utf-8');
 }
 
+const HTML_ENTITIES: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: ' ',
+};
+
+// El snippet de Gmail (y a veces el subject) viene HTML-entity-encoded
+// (ej: "TechCrunch&#39;s"). Solo decodifica entidades, no interpreta el
+// resto como HTML — el contenido sigue siendo texto plano.
+function decodeHtmlEntities(text: string): string {
+  return text.replace(/&(#\d+|#x[0-9a-fA-F]+|[a-zA-Z]+);/g, (match, code: string) => {
+    if (code.startsWith('#x') || code.startsWith('#X')) {
+      return String.fromCodePoint(parseInt(code.slice(2), 16));
+    }
+    if (code.startsWith('#')) {
+      return String.fromCodePoint(parseInt(code.slice(1), 10));
+    }
+    return HTML_ENTITIES[code] ?? match;
+  });
+}
+
 // Extrae el primer bloque text/plain del payload (recorre multipart), o cae
 // al snippet de Gmail si no encuentra uno.
 function extractBody(payload: gmail_v1.Schema$MessagePart | undefined): string | null {
@@ -80,7 +104,7 @@ async function importMessage(channel: GmailChannel, msg: gmail_v1.Schema$Message
   const { name, address } = parseFromHeader(header(msg, direction === 'inbound' ? 'From' : 'To'));
   const subject = header(msg, 'Subject') ?? '(sin asunto)';
   const body = extractBody(msg.payload) ?? msg.snippet ?? '';
-  const content = `${subject}\n\n${body}`.trim();
+  const content = decodeHtmlEntities(`${subject}\n\n${body}`.trim());
 
   console.log(`[gmail:${channel}] buscando/creando contacto para ${address}`);
   const contact = await findOrCreateContactByChannel({ channel, address }, name);
