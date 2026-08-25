@@ -148,6 +148,12 @@ export async function insertRawMessage(msg: {
   return data as Message;
 }
 
+export async function getMessage(messageId: string): Promise<Message | null> {
+  const { data, error } = await getSupabase().from('messages').select('*').eq('id', messageId).maybeSingle();
+  if (error) throw error;
+  return data as Message | null;
+}
+
 export async function getPendingMessages(): Promise<Message[]> {
   const { data, error } = await getSupabase()
     .from('messages')
@@ -185,6 +191,15 @@ export async function getAllSkills(): Promise<Skill[]> {
   return data as Skill[];
 }
 
+export async function getMessageSkillIds(messageId: string): Promise<string[]> {
+  const { data, error } = await getSupabase()
+    .from('message_skills')
+    .select('skill_id')
+    .eq('message_id', messageId);
+  if (error) throw error;
+  return (data as { skill_id: string }[]).map((row) => row.skill_id);
+}
+
 export async function saveMessageSkills(messageId: string, selection: SkillSelection): Promise<void> {
   const skillIds = [
     ...(selection.tono ? [selection.tono] : []),
@@ -205,6 +220,16 @@ export async function saveMessageSkills(messageId: string, selection: SkillSelec
 // ---------------------------------------------------------------------------
 // context_chunks — busqueda vectorial para RAG (requiere el embedding ya calculado)
 // ---------------------------------------------------------------------------
+export async function insertContextChunk(chunk: {
+  contact_id: string | null;
+  channel: Channel | null;
+  content: string;
+  embedding: number[];
+}): Promise<void> {
+  const { error } = await getSupabase().from('context_chunks').insert(chunk);
+  if (error) throw error;
+}
+
 export async function searchContextChunks(
   contactId: string,
   embedding: number[],
