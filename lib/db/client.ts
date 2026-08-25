@@ -85,6 +85,12 @@ export async function getContact(contactId: string): Promise<Contact | null> {
   return data as Contact | null;
 }
 
+export async function getAllContacts(): Promise<Contact[]> {
+  const { data, error } = await getSupabase().from('contacts').select('*').order('name', { ascending: true });
+  if (error) throw error;
+  return data as Contact[];
+}
+
 export async function updateContactNotes(contactId: string, notes: string): Promise<void> {
   const { error } = await getSupabase()
     .from('contacts')
@@ -152,6 +158,73 @@ export async function getMessage(messageId: string): Promise<Message | null> {
   const { data, error } = await getSupabase().from('messages').select('*').eq('id', messageId).maybeSingle();
   if (error) throw error;
   return data as Message | null;
+}
+
+export interface QueueMessage extends Message {
+  contact: Contact | null;
+}
+
+// La cola de revision de la UI: todo lo que todavia no se aprobo/descarto/envio.
+export async function getQueueMessages(): Promise<QueueMessage[]> {
+  const { data, error } = await getSupabase()
+    .from('messages')
+    .select('*, contact:contacts(*)')
+    .in('status', ['pending', 'drafted'])
+    .order('received_at', { ascending: true });
+  if (error) throw error;
+  return data as unknown as QueueMessage[];
+}
+
+// Historial reciente de un contacto para el panel de Contexto — mensajes
+// crudos (no la busqueda vectorial que usa el draft, esto es solo para
+// mostrarle al usuario que paso antes con este contacto).
+export async function getRecentContactHistory(
+  contactId: string,
+  excludeMessageId: string,
+  limit = 5
+): Promise<Message[]> {
+  const { data, error } = await getSupabase()
+    .from('messages')
+    .select('*')
+    .eq('contact_id', contactId)
+    .neq('id', excludeMessageId)
+    .order('received_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data as Message[];
+}
+
+export interface QueueStats {
+  pending: number;
+  approved_today: number;
+  skipped_today: number;
+}
+
+export async function getQueueStats(): Promise<QueueStats> {
+  const supabase = getSupabase();
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const [{ count: pending }, { count: approvedToday }, { count: skippedToday }] = await Promise.all([
+    supabase.from('messages').select('*', { count: 'exact', head: true }).in('status', ['pending', 'drafted']),
+    supabase
+      .from('messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'approved')
+      .gte('updated_at', startOfDay.toISOString()),
+    supabase
+      .from('messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'skipped')
+      .gte('updated_at', startOfDay.toISOString()),
+  ]);
+
+  return { pending: pending ?? 0, approved_today: approvedToday ?? 0, skipped_today: skippedToday ?? 0 };
+}
+
+export async function updateDraftContent(messageId: string, draft: string): Promise<void> {
+  const { error } = await getSupabase().from('messages').update({ draft_content: draft }).eq('id', messageId);
+  if (error) throw error;
 }
 
 export async function getPendingMessages(): Promise<Message[]> {

@@ -3,6 +3,7 @@
 // Telegram y WhatsApp se suman aca cuando existan sus conectores.
 import { NextRequest, NextResponse } from 'next/server';
 import { syncAllGmailAccounts } from '@/lib/connectors/gmail';
+import { serializeError } from '@/lib/api-error';
 
 export const maxDuration = 60;
 
@@ -24,21 +25,6 @@ export async function GET(req: NextRequest) {
     console.error('[/api/sync] failed:', err);
     return NextResponse.json({ ok: false, error: serializeError(err) }, { status: 500 });
   }
-}
-
-function serializeError(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  if (typeof err === 'object' && err !== null) {
-    // errores de supabase-js (PostgrestError) no son instancias de Error
-    const maybeMessage = (err as { message?: unknown }).message;
-    if (typeof maybeMessage === 'string') return maybeMessage;
-    try {
-      return JSON.stringify(err);
-    } catch {
-      return String(err);
-    }
-  }
-  return String(err);
 }
 
 // El trigger manual (botón en la UI, webhook externo) pega un POST al mismo endpoint.

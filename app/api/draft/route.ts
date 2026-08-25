@@ -4,6 +4,7 @@
 // propio cron (ver vercel.json).
 import { NextRequest, NextResponse } from 'next/server';
 import { draftPendingMessages } from '@/lib/ai/draft';
+import { serializeError } from '@/lib/api-error';
 
 export const maxDuration = 60;
 
@@ -36,20 +37,6 @@ export async function GET(req: NextRequest) {
     console.error('[/api/draft] failed:', err);
     return NextResponse.json({ ok: false, error: serializeError(err) }, { status: 500 });
   }
-}
-
-function serializeError(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  if (typeof err === 'object' && err !== null) {
-    const maybeMessage = (err as { message?: unknown }).message;
-    if (typeof maybeMessage === 'string') return maybeMessage;
-    try {
-      return JSON.stringify(err);
-    } catch {
-      return String(err);
-    }
-  }
-  return String(err);
 }
 
 export const POST = GET;
