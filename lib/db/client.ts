@@ -139,6 +139,7 @@ export async function insertRawMessage(msg: {
   thread_id: string | null;
   external_id: string | null;
   direction: 'inbound' | 'outbound';
+  sender_name?: string | null;
   content: string;
   received_at: string;
 }): Promise<Message> {

@@ -447,11 +447,15 @@ export default function DashboardApp() {
                   <span className="block-label">Mensaje original</span>
                   {selectedGroupMessages.length > 1 ? (
                     <div className="original-msg-stack">
-                      {selectedGroupMessages.map((m) => (
-                        <div className="original-msg" key={m.id}>
-                          {m.content}
-                        </div>
-                      ))}
+                      {selectedGroupMessages.map((m) => {
+                        const sender = m.sender_name ?? (m.direction === "outbound" ? "Vos" : null);
+                        return (
+                          <div className="original-msg" key={m.id}>
+                            <span className="original-msg-text">{m.content}</span>
+                            {sender && <span className="original-msg-sender">{sender}</span>}
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="original-msg">{selectedItem.content}</div>

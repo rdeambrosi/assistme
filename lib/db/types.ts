@@ -54,6 +54,10 @@ export interface Message {
   thread_id: string | null;
   external_id: string | null;
   direction: MessageDirection;
+  // quien escribio dentro del chat/grupo (distinto de contact_id, que
+  // identifica el chat entero) — null cuando el canal no distingue
+  // remitentes individuales (ej. gmail, whatsapp 1:1) o no se pudo resolver.
+  sender_name: string | null;
   content: string;
   received_at: string;
   status: MessageStatus;

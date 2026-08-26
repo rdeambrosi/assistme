@@ -8,7 +8,7 @@
 // multiples chats — cada uno con su propio cursor de "ultimo message_id
 // procesado" en telegram_chat_cursors. sync_state.telegram solo trackea
 // last_run_at/last_status general (ver comentario en el schema).
-import { TelegramClient } from 'teleproto';
+import { Api, TelegramClient } from 'teleproto';
 import { StringSession } from 'teleproto/sessions';
 import {
   findOrCreateContactByChannel,
@@ -22,6 +22,18 @@ import {
 // pegarse contra el limite de 60s de las funciones serverless de Vercel.
 const MAX_DIALOGS = 30;
 const MAX_MESSAGES_PER_DIALOG_INITIAL = 20;
+
+// Nombre para mostrar de quien mando un mensaje puntual dentro de un grupo
+// (distinto del contacto/chat entero). Solo Api.User trae firstName/lastName —
+// un grupo/canal como remitente (mensajes de "canal anonimo") no los tiene.
+async function senderDisplayName(msg: Api.Message): Promise<string | null> {
+  const sender = await msg.getSender();
+  if (!sender || !(sender instanceof Api.User)) return null;
+  const fullName = [sender.firstName, sender.lastName].filter(Boolean).join(' ');
+  if (fullName) return fullName;
+  if (sender.username) return `@${sender.username}`;
+  return null;
+}
 
 function getClient(): TelegramClient {
   const apiId = Number(process.env.TELEGRAM_API_ID);
@@ -75,6 +87,9 @@ export async function syncTelegram(): Promise<TelegramSyncResult> {
           thread_id: String(chatId),
           external_id: `${chatId}:${msg.id}`,
           direction,
+          // solo interesa distinguir remitente en chats con mas de una
+          // persona posible (grupos) — en un 1:1 ya lo dice contact_id.
+          sender_name: dialog.isGroup ? await senderDisplayName(msg) : null,
           content: msg.message,
           received_at: new Date(msg.date * 1000).toISOString(),
         });

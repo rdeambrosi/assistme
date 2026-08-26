@@ -427,6 +427,25 @@ textarea {
   flex-direction: column;
   gap: 8px;
 }
+.original-msg-stack .original-msg {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.original-msg-text {
+  flex: 1;
+}
+.original-msg-sender {
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  white-space: nowrap;
+  padding-top: 2px;
+}
 .draft-textarea {
   width: 100%;
   min-height: 140px;
