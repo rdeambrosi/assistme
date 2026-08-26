@@ -6,8 +6,15 @@
 //
 // El webhook de WhatsApp queda afuera a proposito: Meta le pega sin
 // credenciales de sesion (tiene su propia verificacion via hub.verify_token).
+//
+// /api/sync y /api/draft tambien quedan afuera del chequeo de cookie
+// cuando el request trae `Authorization: Bearer <CRON_SECRET>` — asi los
+// dispara el cron de Vercel automaticamente (ver vercel.json), que
+// obviamente no tiene la cookie de sesion del login.
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, sha256Hex } from "@/lib/auth";
+
+const CRON_PATHS = new Set(["/api/sync", "/api/draft"]);
 
 export async function proxy(req: NextRequest) {
   const password = process.env.DASHBOARD_PASSWORD;
@@ -16,6 +23,15 @@ export async function proxy(req: NextRequest) {
   if (!password) return NextResponse.next();
 
   if (req.nextUrl.pathname === "/login" || req.nextUrl.pathname === "/api/login") {
+    return NextResponse.next();
+  }
+
+  const cronSecret = process.env.CRON_SECRET;
+  if (
+    cronSecret &&
+    CRON_PATHS.has(req.nextUrl.pathname) &&
+    req.headers.get("authorization") === `Bearer ${cronSecret}`
+  ) {
     return NextResponse.next();
   }
 
