@@ -31,7 +31,7 @@ comms-hub/
 │   ├── auth.ts                          # hashing compartido por proxy.ts y /api/login
 │   └── channels.ts, api-error.ts
 ├── proxy.ts                             # gate de contraseña para todo el dashboard (Next.js 16 "proxy", ex-middleware)
-├── scripts/{gmail,telegram,calendar}-auth.ts  # generan los refresh tokens/session strings, corridas locales una vez
+├── scripts/{gmail,telegram}-auth.ts     # generan los refresh tokens/session strings, corridas locales una vez
 ├── skills/{tono,contexto,formato}/*.md  # contenido de las skills seleccionables en la UI (placeholders, editar)
 └── supabase/migrations/0001_init.sql    # schema completo
 ```
@@ -57,12 +57,11 @@ VOYAGE_API_KEY=                    # embeddings para el RAG del draft
 DASHBOARD_PASSWORD=                # protege TODO el dashboard — sin esto, la URL de Vercel queda publica
 CRON_SECRET=                       # valida las corridas automaticas de /api/sync y /api/draft
 
-GOOGLE_CLIENT_ID=                  # OAuth client compartido por Gmail y Calendar (my.google.cloud console)
+GOOGLE_CLIENT_ID=                  # OAuth client compartido por Gmail y Calendar (Google Cloud console)
 GOOGLE_CLIENT_SECRET=
-GMAIL_1_REFRESH_TOKEN=             # uno por cuenta, generados con `npm run gmail:auth <label>`
-GMAIL_2_REFRESH_TOKEN=
-GMAIL_3_REFRESH_TOKEN=
-GOOGLE_CALENDAR_REFRESH_TOKEN=     # generado con `npm run calendar:auth`, mismo client que Gmail
+GMAIL_1_REFRESH_TOKEN=             # uno por cuenta, generados con `npm run gmail:auth <label>` — incluye
+GMAIL_2_REFRESH_TOKEN=             # scope de gmail.* Y calendar.events, asi cada cuenta reserva en su
+GMAIL_3_REFRESH_TOKEN=             # propio calendario (mensajes de Telegram/WhatsApp caen en gmail_1)
 
 TELEGRAM_API_ID=                   # my.telegram.org
 TELEGRAM_API_HASH=

@@ -23,6 +23,7 @@ const REDIRECT_URI = "http://localhost:3000/oauth2callback";
 const SCOPES = [
   "https://www.googleapis.com/auth/gmail.modify",
   "https://www.googleapis.com/auth/gmail.send",
+  "https://www.googleapis.com/auth/calendar.events", // asi cada cuenta puede crear reuniones en su propio calendario
 ];
 
 const label = process.argv[2];

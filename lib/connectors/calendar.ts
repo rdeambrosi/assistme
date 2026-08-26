@@ -1,17 +1,27 @@
 // Crea eventos de Google Calendar con Meet automatico (conferenceDataVersion:1).
-// Reusa el OAuth client de Gmail (GOOGLE_CLIENT_ID/SECRET) con un refresh
-// token propio autorizado para el scope de Calendar.
+// Usa el mismo refresh token que el conector de Gmail para la cuenta que
+// corresponda (GMAIL_1/2/3_REFRESH_TOKEN, que ahora incluye el scope
+// calendar.events ademas de gmail.*) — asi cada mensaje reserva en el
+// calendario de la cuenta por la que llego, no uno solo compartido.
 import { google, calendar_v3 } from 'googleapis';
+import { isGmailChannel, type GmailChannel } from '@/lib/connectors/gmail';
+import type { Channel } from '@/lib/db/types';
 
-function getClient(): calendar_v3.Calendar {
+// Mensajes que no llegaron por Gmail (Telegram/WhatsApp) no tienen una
+// cuenta de Google propia — caen en esta por default.
+const DEFAULT_CALENDAR_CHANNEL: GmailChannel = 'gmail_1';
+
+function getClient(channel: Channel): calendar_v3.Calendar {
+  const gmailChannel = isGmailChannel(channel) ? channel : DEFAULT_CALENDAR_CHANNEL;
+
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const refreshToken = process.env.GOOGLE_CALENDAR_REFRESH_TOKEN;
+  const refreshToken = process.env[`${gmailChannel.toUpperCase()}_REFRESH_TOKEN`];
   if (!clientId || !clientSecret) {
     throw new Error('Faltan GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET en el entorno');
   }
   if (!refreshToken) {
-    throw new Error('Falta GOOGLE_CALENDAR_REFRESH_TOKEN en el entorno');
+    throw new Error(`Falta ${gmailChannel.toUpperCase()}_REFRESH_TOKEN en el entorno`);
   }
 
   const auth = new google.auth.OAuth2(clientId, clientSecret);
@@ -20,6 +30,7 @@ function getClient(): calendar_v3.Calendar {
 }
 
 export interface CreateMeetingParams {
+  channel: Channel;
   summary: string;
   description?: string;
   startISO: string;
@@ -33,7 +44,7 @@ export interface CreateMeetingResult {
 }
 
 export async function createMeeting(params: CreateMeetingParams): Promise<CreateMeetingResult> {
-  const calendar = getClient();
+  const calendar = getClient(params.channel);
 
   const { data } = await calendar.events.insert({
     calendarId: 'primary',

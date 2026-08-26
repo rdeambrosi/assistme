@@ -8,8 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "gmail:auth": "tsx scripts/gmail-auth.ts",
-    "telegram:auth": "tsx scripts/telegram-auth.ts",
-    "calendar:auth": "tsx scripts/calendar-auth.ts"
+    "telegram:auth": "tsx scripts/telegram-auth.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

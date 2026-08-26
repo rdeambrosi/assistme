@@ -29,6 +29,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const end = new Date(start.getTime() + MEETING_DURATION_MINUTES * 60 * 1000);
 
     const result = await createMeeting({
+      channel: message.channel,
       summary: `Reunión con ${contact?.name ?? 'contacto'}`,
       description: message.content.slice(0, 500),
       startISO: start.toISOString(),
