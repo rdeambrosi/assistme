@@ -26,7 +26,7 @@ const MAX_MESSAGES_PER_DIALOG_INITIAL = 20;
 // Nombre para mostrar de quien mando un mensaje puntual dentro de un grupo
 // (distinto del contacto/chat entero). Solo Api.User trae firstName/lastName —
 // un grupo/canal como remitente (mensajes de "canal anonimo") no los tiene.
-async function senderDisplayName(msg: Api.Message): Promise<string | null> {
+export async function senderDisplayName(msg: Api.Message): Promise<string | null> {
   const sender = await msg.getSender();
   if (!sender || !(sender instanceof Api.User)) return null;
   const fullName = [sender.firstName, sender.lastName].filter(Boolean).join(' ');

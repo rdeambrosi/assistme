@@ -121,7 +121,10 @@ export default function DashboardApp() {
 
   const [recording, setRecording] = useState(false);
   const [recSeconds, setRecSeconds] = useState(0);
+  const [transcribing, setTranscribing] = useState(false);
   const recTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   const loadQueue = useCallback(async () => {
     try {
@@ -284,28 +287,71 @@ export default function DashboardApp() {
     }
   }
 
-  function startRecording() {
-    setRecording(true);
-    setRecSeconds(0);
-    recTimerRef.current = setInterval(() => setRecSeconds((s) => s + 1), 1000);
+  // "Responder con audio": no es dictado literal del draft — Rafa le dice a
+  // su asistente que quiere que diga la respuesta, y esa instruccion se
+  // transcribe y se le pasa a Claude para que redacte el draft con eso.
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setRecording(true);
+      setRecSeconds(0);
+      recTimerRef.current = setInterval(() => setRecSeconds((s) => s + 1), 1000);
+    } catch (err) {
+      alert(`No se pudo acceder al microfono: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
-  function stopRecording(silent: boolean) {
-    if (!recording) return;
-    setRecording(false);
+  function stopRecording(discard: boolean) {
+    const recorder = mediaRecorderRef.current;
     if (recTimerRef.current) clearInterval(recTimerRef.current);
-    if (!silent && recSeconds > 0 && selectedId) {
-      setDrafts((prev) => {
-        const text = (prev[selectedId] ? prev[selectedId] + " " : "") + "[transcripcion de audio agregada aca]";
-        saveDraftText(selectedId, text);
-        return { ...prev, [selectedId]: text };
-      });
+    setRecording(false);
+    if (!recorder) return;
+
+    const messageId = selectedId;
+    recorder.onstop = () => {
+      recorder.stream.getTracks().forEach((t) => t.stop());
+      mediaRecorderRef.current = null;
+      if (discard || !messageId || audioChunksRef.current.length === 0) return;
+      const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType || "audio/webm" });
+      sendVoiceInstruction(messageId, blob);
+    };
+    recorder.stop();
+  }
+
+  async function sendVoiceInstruction(messageId: string, blob: Blob) {
+    setTranscribing(true);
+    try {
+      const form = new FormData();
+      form.append("audio", blob, "audio.webm");
+      const res = await fetch(`/api/messages/${messageId}/voice-instruction`, { method: "POST", body: form });
+      const json = await res.json();
+      if (!res.ok || !json.ok) throw new Error(json.error ?? "No se pudo procesar el audio");
+      setDrafts((prev) => ({ ...prev, [messageId]: json.result.draft }));
+      setItems((prev) =>
+        prev.map((i) =>
+          i.id === messageId
+            ? { ...i, meeting_intent: json.result.meeting_intent, suggested_meeting_at: json.result.suggested_meeting_at }
+            : i
+        )
+      );
+    } catch (err) {
+      alert(`No se pudo generar el draft desde el audio: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setTranscribing(false);
     }
   }
 
   useEffect(
     () => () => {
       if (recTimerRef.current) clearInterval(recTimerRef.current);
+      mediaRecorderRef.current?.stream.getTracks().forEach((t) => t.stop());
     },
     []
   );
@@ -533,6 +579,7 @@ export default function DashboardApp() {
                   <button
                     className={`btn-audio${recording ? " recording" : ""}`}
                     onClick={() => (recording ? stopRecording(false) : startRecording())}
+                    disabled={transcribing}
                   >
                     {recording ? (
                       <>
@@ -541,6 +588,8 @@ export default function DashboardApp() {
                           {recMin}:{recSec.toString().padStart(2, "0")}
                         </span>
                       </>
+                    ) : transcribing ? (
+                      <span>Transcribiendo…</span>
                     ) : (
                       <>
                         <IconMic />

@@ -256,6 +256,29 @@ export async function setMessageStatus(messageId: string, status: MessageStatus)
   if (error) throw error;
 }
 
+export interface MessageForSenderBackfill {
+  id: string;
+  thread_id: string | null;
+  external_id: string | null;
+}
+
+// Mensajes importados antes de que el sync guardara sender_name (ver
+// migracion 0002) — usado por scripts/telegram-backfill-senders.ts.
+export async function getMessagesMissingSenderName(channel: Channel): Promise<MessageForSenderBackfill[]> {
+  const { data, error } = await getSupabase()
+    .from('messages')
+    .select('id, thread_id, external_id')
+    .eq('channel', channel)
+    .is('sender_name', null);
+  if (error) throw error;
+  return data as MessageForSenderBackfill[];
+}
+
+export async function updateMessageSenderName(messageId: string, senderName: string | null): Promise<void> {
+  const { error } = await getSupabase().from('messages').update({ sender_name: senderName }).eq('id', messageId);
+  if (error) throw error;
+}
+
 // ---------------------------------------------------------------------------
 // skills / message_skills — persiste lo tildado en el dropdown de la UI
 // ---------------------------------------------------------------------------

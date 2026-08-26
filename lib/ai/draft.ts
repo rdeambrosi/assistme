@@ -47,7 +47,7 @@ const CHANNEL_LABEL: Record<Channel, string> = {
   whatsapp: 'WhatsApp',
 };
 
-async function buildPrompt(message: Message): Promise<string> {
+async function buildPrompt(message: Message, instruction?: string): Promise<string> {
   const contact = message.contact_id ? await getContact(message.contact_id) : null;
   const contactLabel = contact?.name ?? 'Desconocido';
 
@@ -73,9 +73,13 @@ async function buildPrompt(message: Message): Promise<string> {
     }
   }
 
+  const instructionSection = instruction
+    ? `\n\nRafa dicto por audio esta indicacion puntual de que decir en esta respuesta (es una instruccion para vos, no el texto final — redacta la respuesta con tus propias palabras siguiendola):\n"""\n${instruction}\n"""`
+    : '';
+
   return `Contacto: ${contactLabel}${contact?.context_notes ? `\nNotas sobre este contacto: ${contact.context_notes}` : ''}
 Canal: ${CHANNEL_LABEL[message.channel]}
-${skillsSection}${historySection}
+${skillsSection}${historySection}${instructionSection}
 
 Mensaje original recibido:
 """
@@ -94,13 +98,15 @@ Reglas:
 - Usa el tono/contexto/formato indicados si estan presentes; si no hay ninguno indicado, usa un tono neutral-profesional.
 - Nunca inventes datos, numeros o compromisos que no esten en el mensaje original o el historial.
 - El draft es solo el cuerpo de la respuesta, sin asunto de email ni firma.
-- Marca meeting_intent en true solo si el mensaje ORIGINAL busca coordinar una reunion/llamada/encuentro.`;
+- Marca meeting_intent en true solo si el mensaje ORIGINAL busca coordinar una reunion/llamada/encuentro.
+- Si Rafa dio una indicacion puntual dictada por audio, priorizala por sobre el tono/contexto por defecto,
+  pero segui redactando vos la respuesta — no repitas la indicacion literal.`;
 
-export async function generateDraft(messageId: string): Promise<DraftResult> {
+export async function generateDraft(messageId: string, opts?: { instruction?: string }): Promise<DraftResult> {
   const message = await getMessage(messageId);
   if (!message) throw new Error(`Mensaje ${messageId} no encontrado`);
 
-  const prompt = await buildPrompt(message);
+  const prompt = await buildPrompt(message, opts?.instruction);
 
   const response = await getClient().messages.parse({
     model: 'claude-opus-5',

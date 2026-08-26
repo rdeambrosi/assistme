@@ -492,6 +492,10 @@ textarea {
   border-color: var(--red);
   color: var(--red);
 }
+.btn-audio:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
 .rec-dot {
   width: 8px;
   height: 8px;
