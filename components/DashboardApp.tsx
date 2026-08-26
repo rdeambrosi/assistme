@@ -22,6 +22,37 @@ interface QueueItem extends Message {
   skillIds: string[];
 }
 
+// Agrupa mensajes pendientes por conversacion: un chat de grupo de Telegram
+// (o cualquier canal) es un unico contact_id con muchos mensajes sueltos
+// esperando revision — sin esto la cola muestra ese mismo grupo repetido
+// una vez por mensaje. contact_id ya identifica de forma unica tanto un
+// chat directo como un grupo (ver findOrCreateContactByChannel), asi que
+// agrupar por canal+contacto alcanza para ambos casos.
+interface QueueGroup {
+  key: string;
+  channel: QueueItem["channel"];
+  contact: Contact | null;
+  messages: QueueItem[]; // orden ascendente por received_at
+}
+
+function groupKeyFor(item: QueueItem): string {
+  return `${item.channel}:${item.contact_id ?? item.thread_id ?? item.id}`;
+}
+
+function groupQueue(items: QueueItem[]): QueueGroup[] {
+  const groups = new Map<string, QueueGroup>();
+  for (const item of items) {
+    const key = groupKeyFor(item);
+    const existing = groups.get(key);
+    if (existing) existing.messages.push(item);
+    else groups.set(key, { key, channel: item.channel, contact: item.contact, messages: [item] });
+  }
+  const result = Array.from(groups.values());
+  for (const g of result) g.messages.sort((a, b) => a.received_at.localeCompare(b.received_at));
+  result.sort((a, b) => a.messages[0].received_at.localeCompare(b.messages[0].received_at));
+  return result;
+}
+
 interface QueueStats {
   pending: number;
   approved_today: number;
@@ -69,6 +100,7 @@ export default function DashboardApp() {
   const [tab, setTab] = useState<Tab>("draft");
   const [filter, setFilter] = useState<Filter>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null);
 
   const [items, setItems] = useState<QueueItem[]>([]);
   const [stats, setStats] = useState<QueueStats>({ pending: 0, approved_today: 0, skipped_today: 0 });
@@ -133,6 +165,10 @@ export default function DashboardApp() {
   }, [contactsOpen]);
 
   const selectedItem = selectedId != null ? items.find((i) => i.id === selectedId) ?? null : null;
+  const selectedGroupMessages = useMemo(
+    () => (selectedGroupKey ? items.filter((i) => groupKeyFor(i) === selectedGroupKey) : []),
+    [items, selectedGroupKey]
+  );
 
   function getSelection(id: string): SkillSelection {
     if (skillSelections[id]) return skillSelections[id];
@@ -140,17 +176,22 @@ export default function DashboardApp() {
     return item ? selectionFromSkillIds(item.skillIds, skills) : emptySelection();
   }
 
-  function selectItem(id: string) {
-    setSelectedId(id);
+  function selectGroup(group: QueueGroup) {
+    // el mensaje mas reciente del grupo maneja draft/skills/deteccion de reunion —
+    // los anteriores del mismo grupo se muestran como contexto en "Mensaje original"
+    const latest = group.messages[group.messages.length - 1];
+    setSelectedGroupKey(group.key);
+    setSelectedId(latest.id);
     setMeetPanelOpen(false);
     setSkillsPanelOpen(false);
     stopRecording(true);
     setView("detail");
     setTab("draft");
 
-    const item = items.find((i) => i.id === id);
-    setMeetDate(item?.suggested_meeting_at ? item.suggested_meeting_at.slice(0, 10) : "");
-    setMeetTime(item?.suggested_meeting_at ? new Date(item.suggested_meeting_at).toISOString().slice(11, 16) : "15:00");
+    setMeetDate(latest.suggested_meeting_at ? latest.suggested_meeting_at.slice(0, 10) : "");
+    setMeetTime(
+      latest.suggested_meeting_at ? new Date(latest.suggested_meeting_at).toISOString().slice(11, 16) : "15:00"
+    );
   }
 
   function toggleSkill(itemId: string, group: "tono" | "contexto" | "formato", id: string) {
@@ -223,17 +264,20 @@ export default function DashboardApp() {
     }
   }
 
-  async function setStatus(id: string, status: "approved" | "skipped") {
+  async function setStatus(ids: string[], status: "approved" | "skipped") {
     try {
-      await fetchJson(`/api/messages/${id}/status`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
-      if (selectedId === id) {
-        setSelectedId(null);
-        setView("queue");
-      }
+      await Promise.all(
+        ids.map((id) =>
+          fetchJson(`/api/messages/${id}/status`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status }),
+          })
+        )
+      );
+      setSelectedId(null);
+      setSelectedGroupKey(null);
+      setView("queue");
       await loadQueue();
     } catch (err) {
       alert(`No se pudo actualizar el mensaje: ${err instanceof Error ? err.message : String(err)}`);
@@ -273,6 +317,7 @@ export default function DashboardApp() {
     () => items.filter((item) => filter === "all" || uiChannel(item.channel) === filter),
     [items, filter]
   );
+  const groupedQueue = useMemo(() => groupQueue(filteredQueue), [filteredQueue]);
 
   function saveContactNotes(id: string, notes: string) {
     fetchJson(`/api/contacts/${id}`, {
@@ -347,24 +392,29 @@ export default function DashboardApp() {
               ))}
             </div>
             <div className="queue">
-              {!loading && filteredQueue.length === 0 && (
+              {!loading && groupedQueue.length === 0 && (
                 <div className="draft-empty" style={{ padding: 24 }}>
                   {loadError ? "No se pudo cargar la cola" : "No hay mensajes pendientes"}
                 </div>
               )}
-              {filteredQueue.map((item) => {
-                const ch = uiChannel(item.channel);
+              {groupedQueue.map((group) => {
+                const ch = uiChannel(group.channel);
+                const oldest = group.messages[0];
+                const latest = group.messages[group.messages.length - 1];
                 return (
-                  <button key={item.id} className="queue-item" onClick={() => selectItem(item.id)}>
+                  <button key={group.key} className="queue-item" onClick={() => selectGroup(group)}>
                     <div className="qi-top">
                       <span className={`qi-channel ${ch}`}>
                         <span className={`dot ${ch}`} />
                         {channelLabel[ch]}
                       </span>
-                      <span className="qi-wait">espera {formatWait(item.received_at)}</span>
+                      <span className="qi-wait">espera {formatWait(oldest.received_at)}</span>
                     </div>
-                    <span className="qi-name">{item.contact?.name ?? "Desconocido"}</span>
-                    <span className="qi-snippet">{item.content.slice(0, 160)}</span>
+                    <span className="qi-name">
+                      {group.contact?.name ?? "Desconocido"}
+                      {group.messages.length > 1 && <span className="qi-count">{group.messages.length}</span>}
+                    </span>
+                    <span className="qi-snippet">{latest.content.slice(0, 160)}</span>
                   </button>
                 );
               })}
@@ -395,7 +445,17 @@ export default function DashboardApp() {
 
                 <div>
                   <span className="block-label">Mensaje original</span>
-                  <div className="original-msg">{selectedItem.content}</div>
+                  {selectedGroupMessages.length > 1 ? (
+                    <div className="original-msg-stack">
+                      {selectedGroupMessages.map((m) => (
+                        <div className="original-msg" key={m.id}>
+                          {m.content}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="original-msg">{selectedItem.content}</div>
+                  )}
                 </div>
 
                 <div>
@@ -509,10 +569,16 @@ export default function DashboardApp() {
                 </div>
 
                 <div className="actions">
-                  <button className="btn btn-approve" onClick={() => setStatus(selectedItem.id, "approved")}>
+                  <button
+                    className="btn btn-approve"
+                    onClick={() => setStatus(selectedGroupMessages.map((m) => m.id), "approved")}
+                  >
                     Aprobar y enviar
                   </button>
-                  <button className="btn btn-skip" onClick={() => setStatus(selectedItem.id, "skipped")}>
+                  <button
+                    className="btn btn-skip"
+                    onClick={() => setStatus(selectedGroupMessages.map((m) => m.id), "skipped")}
+                  >
                     Descartar
                   </button>
                 </div>

@@ -337,6 +337,20 @@ textarea {
 .qi-name {
   font-size: 14px;
   font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.qi-count {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 400;
+  background: var(--bg3);
+  color: var(--text-secondary);
+  padding: 1px 6px;
+  border-radius: 10px;
+  min-width: 16px;
+  text-align: center;
 }
 .qi-snippet {
   font-size: 12px;
@@ -407,6 +421,11 @@ textarea {
   font-size: 13px;
   line-height: 1.6;
   color: var(--text-secondary);
+}
+.original-msg-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 .draft-textarea {
   width: 100%;
