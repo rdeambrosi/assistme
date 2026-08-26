@@ -49,7 +49,10 @@ function groupQueue(items: QueueItem[]): QueueGroup[] {
   }
   const result = Array.from(groups.values());
   for (const g of result) g.messages.sort((a, b) => a.received_at.localeCompare(b.received_at));
-  result.sort((a, b) => a.messages[0].received_at.localeCompare(b.messages[0].received_at));
+  // Mas reciente arriba: ordena por el ultimo mensaje de cada grupo, descendente.
+  result.sort((a, b) =>
+    b.messages[b.messages.length - 1].received_at.localeCompare(a.messages[a.messages.length - 1].received_at)
+  );
   return result;
 }
 
@@ -100,6 +103,7 @@ export default function DashboardApp() {
   const [view, setView] = useState<View>("queue");
   const [tab, setTab] = useState<Tab>("draft");
   const [filter, setFilter] = useState<Filter>("all");
+  const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null);
 
@@ -185,6 +189,16 @@ export default function DashboardApp() {
     [items, filter]
   );
   const groupedQueue = useMemo(() => groupQueue(filteredQueue), [filteredQueue]);
+  const visibleQueue = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return groupedQueue;
+    return groupedQueue.filter((g) => {
+      if (g.contact?.name?.toLowerCase().includes(q)) return true;
+      // El titulo/asunto de cada mensaje es su primera linea (el subject de
+      // Gmail viene concatenado como `subject\n\nbody`, ver connectors/gmail.ts).
+      return g.messages.some((m) => m.content.split("\n")[0].toLowerCase().includes(q));
+    });
+  }, [groupedQueue, search]);
 
   function getSelection(id: string): SkillSelection {
     if (skillSelections[id]) return skillSelections[id];
@@ -318,7 +332,7 @@ export default function DashboardApp() {
   // ejecuta ninguna accion todavia, solo tilda para que el usuario confirme
   // con "Marcar leido"/"Descartar".
   function selectTopN(n: number) {
-    setSelectedGroupKeys(new Set(groupedQueue.slice(0, n).map((g) => g.key)));
+    setSelectedGroupKeys(new Set(visibleQueue.slice(0, n).map((g) => g.key)));
   }
 
   async function bulkSetStatus(status: "read" | "skipped") {
@@ -483,6 +497,15 @@ export default function DashboardApp() {
                 </button>
               ))}
             </div>
+            <div className="search-row">
+              <input
+                type="search"
+                className="search-input"
+                placeholder="Buscar por contacto o asunto…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
             {selectionMode && (
               <div className="selection-bar">
                 <span className="selection-count">{selectedGroupKeys.size} seleccionados</span>
@@ -513,12 +536,16 @@ export default function DashboardApp() {
               </div>
             )}
             <div className="queue">
-              {!loading && groupedQueue.length === 0 && (
+              {!loading && visibleQueue.length === 0 && (
                 <div className="draft-empty" style={{ padding: 24 }}>
-                  {loadError ? "No se pudo cargar la cola" : "No hay mensajes pendientes"}
+                  {loadError
+                    ? "No se pudo cargar la cola"
+                    : search.trim()
+                      ? "Sin resultados para la busqueda"
+                      : "No hay mensajes pendientes"}
                 </div>
               )}
-              {groupedQueue.map((group) => {
+              {visibleQueue.map((group) => {
                 const ch = uiChannel(group.channel);
                 const oldest = group.messages[0];
                 const latest = group.messages[group.messages.length - 1];

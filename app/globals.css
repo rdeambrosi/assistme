@@ -311,6 +311,27 @@ textarea {
   border-color: var(--amber);
   color: var(--amber);
 }
+.search-row {
+  padding: 10px 16px 0;
+  flex-shrink: 0;
+}
+.search-input {
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg1);
+  color: var(--text-primary);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.search-input::placeholder {
+  color: var(--text-muted);
+}
+.search-input:focus {
+  outline: none;
+  border-color: var(--amber);
+}
 .queue {
   flex: 1;
   overflow-y: auto;
