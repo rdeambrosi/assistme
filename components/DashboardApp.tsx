@@ -547,7 +547,6 @@ export default function DashboardApp() {
               )}
               {visibleQueue.map((group) => {
                 const ch = uiChannel(group.channel);
-                const oldest = group.messages[0];
                 const latest = group.messages[group.messages.length - 1];
                 const isSelected = selectedGroupKeys.has(group.key);
                 return (
@@ -577,7 +576,7 @@ export default function DashboardApp() {
                         <span className={`dot ${ch}`} />
                         {channelLabel[ch]}
                       </span>
-                      <span className="qi-wait">espera {formatWait(oldest.received_at)}</span>
+                      <span className="qi-wait">hace {formatWait(latest.received_at)}</span>
                     </div>
                     <span className="qi-name">
                       {group.contact?.name ?? "Desconocido"}
