@@ -907,6 +907,25 @@ export default function DashboardApp() {
             <div className="col-header desktop-only">
               <span className="col-title">Contexto</span>
             </div>
+            <div className="queue-status">
+              <span className="block-label">Estado de la cola</span>
+              <div className="stat-row stat-row-primary">
+                <span>Pendientes</span>
+                <span>{stats.pending}</span>
+              </div>
+              <div className="stat-row">
+                <span>Aprobados hoy</span>
+                <span>{stats.approved_today}</span>
+              </div>
+              <div className="stat-row">
+                <span>Descartados hoy</span>
+                <span>{stats.skipped_today}</span>
+              </div>
+              <div className="stat-row">
+                <span>Leídos hoy</span>
+                <span>{stats.read_today}</span>
+              </div>
+            </div>
             {!selectedItem ? (
               <div className="context-empty">Sin contacto seleccionado</div>
             ) : (
@@ -929,25 +948,6 @@ export default function DashboardApp() {
                       ))}
                     </div>
                   )}
-                </div>
-                <div>
-                  <span className="block-label">Estado de la cola</span>
-                  <div className="stat-row">
-                    <span>Pendientes</span>
-                    <span>{stats.pending}</span>
-                  </div>
-                  <div className="stat-row">
-                    <span>Aprobados hoy</span>
-                    <span>{stats.approved_today}</span>
-                  </div>
-                  <div className="stat-row">
-                    <span>Descartados hoy</span>
-                    <span>{stats.skipped_today}</span>
-                  </div>
-                  <div className="stat-row">
-                    <span>Leídos hoy</span>
-                    <span>{stats.read_today}</span>
-                  </div>
                 </div>
               </div>
             )}

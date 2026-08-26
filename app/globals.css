@@ -779,6 +779,22 @@ textarea {
   font-size: 13px;
   font-family: var(--mono);
 }
+.queue-status {
+  padding: 16px 16px 18px;
+  background: var(--bg1);
+  border-bottom: 1px solid var(--border-soft);
+}
+.stat-row-primary {
+  padding: 9px 0;
+}
+.stat-row-primary span:first-child {
+  color: var(--text-secondary);
+}
+.stat-row-primary span:last-child {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--amber);
+}
 .contact-card {
   display: flex;
   flex-direction: column;
