@@ -205,6 +205,17 @@ export async function syncGmailAccount(channel: GmailChannel): Promise<GmailSync
   }
 }
 
+// Saca la label UNREAD del lado de Gmail cuando se marca leido ac­a — sin
+// esto, "Marcar leido" en assist-me no se refleja en la bandeja real.
+export async function markGmailRead(channel: GmailChannel, messageId: string): Promise<void> {
+  const gmail = gmailClientFor(channel);
+  await gmail.users.messages.modify({
+    userId: 'me',
+    id: messageId,
+    requestBody: { removeLabelIds: ['UNREAD'] },
+  });
+}
+
 export interface SendReplyParams {
   channel: GmailChannel;
   threadId: string;

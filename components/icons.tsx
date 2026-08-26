@@ -51,6 +51,16 @@ export function IconMic() {
   );
 }
 
+export function IconRefresh() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 12a9 9 0 0 1-15.3 6.36M3 12a9 9 0 0 1 15.3-6.36" />
+      <path d="M3 4v6h6" />
+      <path d="M21 20v-6h-6" />
+    </svg>
+  );
+}
+
 export function IconCalendar() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

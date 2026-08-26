@@ -9,8 +9,14 @@ import {
   IconChevron,
   IconContacts,
   IconMic,
+  IconRefresh,
   IconSkills,
 } from "@/components/icons";
+
+// El cron de Vercel (vercel.json) solo puede correr una vez por dia en el
+// plan actual — mientras el dashboard este abierto, este intervalo cubre el
+// "quiero mensajes de como minimo hace 15 minutos" sin depender de eso.
+const AUTO_REFRESH_MS = 15 * 60 * 1000;
 
 type View = "queue" | "detail";
 type Tab = "draft" | "context";
@@ -130,6 +136,7 @@ export default function DashboardApp() {
   const [contactsOpen, setContactsOpen] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [savedContactId, setSavedContactId] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   const [recording, setRecording] = useState(false);
   const [recSeconds, setRecSeconds] = useState(0);
@@ -167,6 +174,29 @@ export default function DashboardApp() {
         /* el selector de skills se muestra vacio si esto falla, no es bloqueante */
       });
   }, [loadQueue]);
+
+  // Botón "Actualizar": dispara el sync real (trae mensajes nuevos de Gmail/
+  // Telegram) y despues recarga la cola — a diferencia de loadQueue solo,
+  // que releería lo que ya esta en la base sin ir a buscar nada nuevo.
+  const refreshQueue = useCallback(async () => {
+    setSyncing(true);
+    try {
+      await fetchJson("/api/sync", { method: "POST" });
+    } catch (err) {
+      console.error("No se pudo sincronizar:", err);
+    } finally {
+      await loadQueue();
+      setSyncing(false);
+    }
+  }, [loadQueue]);
+
+  useEffect(() => {
+    // El cron de Vercel corre una vez al dia (limite del plan actual) — este
+    // intervalo mantiene la cola razonablemente al dia mientras el
+    // dashboard este abierto en el navegador.
+    const id = setInterval(refreshQueue, AUTO_REFRESH_MS);
+    return () => clearInterval(id);
+  }, [refreshQueue]);
 
   useEffect(() => {
     document.body.classList.toggle("contacts-open", contactsOpen);
@@ -482,9 +512,20 @@ export default function DashboardApp() {
           <div className="col" data-role="queue">
             <div className="col-header">
               <span className="col-title">Cola de revision</span>
-              <button className="select-toggle" onClick={toggleSelectionMode}>
-                {selectionMode ? "Cancelar" : "Seleccionar"}
-              </button>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button
+                  className={`refresh-btn${syncing ? " spinning" : ""}`}
+                  onClick={refreshQueue}
+                  disabled={syncing}
+                  title="Buscar mensajes nuevos"
+                  aria-label="Actualizar"
+                >
+                  <IconRefresh />
+                </button>
+                <button className="select-toggle" onClick={toggleSelectionMode}>
+                  {selectionMode ? "Cancelar" : "Seleccionar"}
+                </button>
+              </div>
             </div>
             <div className="filters">
               {(["all", "gmail", "telegram", "whatsapp"] as Filter[]).map((f) => (

@@ -54,6 +54,19 @@ export async function sendTelegramMessage(chatId: number, text: string): Promise
   }
 }
 
+// Marca leido del lado de Telegram cuando se marca leido ac­a — sin esto,
+// "Marcar leido" en assist-me no tiene ningun efecto en la app real y el
+// chat sigue apareciendo con no-leidos ahi.
+export async function markTelegramRead(chatId: number, messageId: number): Promise<void> {
+  const client = getClient();
+  await client.connect();
+  try {
+    await client.markAsRead(chatId, messageId);
+  } finally {
+    await client.disconnect();
+  }
+}
+
 export interface TelegramSyncResult {
   dialogsProcessed: number;
   imported: number;
@@ -75,6 +88,10 @@ export async function syncTelegram(): Promise<TelegramSyncResult> {
 
       const cursor = await getTelegramCursor(chatId);
       const minId = cursor?.last_message_id ?? undefined;
+      // Hasta que id ya esta leido del lado de Telegram (otro cliente, o el
+      // propio celular) — si ya se leyo alla, entra directo como 'read' en
+      // vez de 'pending', asi la cola no repite lo que Rafa ya vio.
+      const readInboxMaxId = dialog.dialog.readInboxMaxId ?? 0;
 
       const messages = await client.getMessages(dialog.entity, {
         limit: minId ? undefined : MAX_MESSAGES_PER_DIALOG_INITIAL,
@@ -102,6 +119,7 @@ export async function syncTelegram(): Promise<TelegramSyncResult> {
           sender_name: dialog.isGroup ? await senderDisplayName(msg) : null,
           content: msg.message,
           received_at: new Date(msg.date * 1000).toISOString(),
+          status: direction === 'inbound' && msg.id <= readInboxMaxId ? 'read' : undefined,
         });
         imported++;
         if (msg.id > latestId) latestId = msg.id;

@@ -7,17 +7,30 @@ import { NextRequest, NextResponse } from 'next/server';
 import { syncAllGmailAccounts } from '@/lib/connectors/gmail';
 import { syncTelegram } from '@/lib/connectors/telegram';
 import { serializeError } from '@/lib/api-error';
+import { SESSION_COOKIE, sha256Hex } from '@/lib/auth';
 
 export const maxDuration = 60;
 
-function isAuthorized(req: NextRequest): boolean {
+async function isAuthorized(req: NextRequest): Promise<boolean> {
   const secret = process.env.CRON_SECRET;
-  if (!secret) return true; // sin secret configurado, no se exige auth (solo para dev local)
-  return req.headers.get('authorization') === `Bearer ${secret}`;
+  if (secret && req.headers.get('authorization') === `Bearer ${secret}`) return true; // cron de Vercel
+
+  // Boton "Actualizar" del dashboard: llega con la cookie de sesion, no con
+  // el bearer del cron — proxy.ts ya lo dejo pasar, pero esto tambien vale
+  // como ruta directa (sin proxy) para dev/tests.
+  const password = process.env.DASHBOARD_PASSWORD;
+  if (password) {
+    const expected = await sha256Hex(password);
+    if (req.cookies.get(SESSION_COOKIE)?.value === expected) return true;
+  }
+
+  // Sin CRON_SECRET ni DASHBOARD_PASSWORD configurados no se exige auth —
+  // solo pasa en dev local.
+  return !secret && !password;
 }
 
 export async function GET(req: NextRequest) {
-  if (!isAuthorized(req)) {
+  if (!(await isAuthorized(req))) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 

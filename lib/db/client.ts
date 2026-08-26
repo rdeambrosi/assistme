@@ -142,6 +142,10 @@ export async function insertRawMessage(msg: {
   sender_name?: string | null;
   content: string;
   received_at: string;
+  // Solo se manda cuando el connector ya sabe que el mensaje esta leido en
+  // el origen (ej. Telegram: msg.id <= readInboxMaxId) — sin esto, el
+  // default de la columna ('pending') lo deja en la cola.
+  status?: MessageStatus;
 }): Promise<Message> {
   // upsert por (channel, external_id) para que re-correr el sync sea idempotente.
   // ignoreDuplicates:false (default) para que siempre devuelva la fila —
@@ -288,6 +292,25 @@ export async function getMessagesMissingSenderName(channel: Channel): Promise<Me
 
 export async function updateMessageSenderName(messageId: string, senderName: string | null): Promise<void> {
   const { error } = await getSupabase().from('messages').update({ sender_name: senderName }).eq('id', messageId);
+  if (error) throw error;
+}
+
+// Mensajes pendientes/en borrador de un canal, para reconciliar estado
+// leido/no-leido contra la fuente real (ver
+// scripts/telegram-backfill-read-status.ts).
+export async function getPendingOrDraftedMessages(channel: Channel): Promise<MessageForSenderBackfill[]> {
+  const { data, error } = await getSupabase()
+    .from('messages')
+    .select('id, thread_id, external_id')
+    .eq('channel', channel)
+    .in('status', ['pending', 'drafted']);
+  if (error) throw error;
+  return data as MessageForSenderBackfill[];
+}
+
+export async function markMessagesRead(messageIds: string[]): Promise<void> {
+  if (messageIds.length === 0) return;
+  const { error } = await getSupabase().from('messages').update({ status: 'read' }).in('id', messageIds);
   if (error) throw error;
 }
 
