@@ -39,7 +39,6 @@ comms-hub/
 ## Falta armar
 
 - [ ] Capa de voz (STT/TTS) para "Responder con audio"
-- [ ] Enviar de verdad el mensaje al aprobar (hoy "Aprobar" solo cambia el status en Supabase, no dispara el envío por Gmail/Telegram/WhatsApp)
 - [ ] Contenido real en `skills/*.md` (hoy son placeholders)
 
 ## Setup
@@ -68,7 +67,8 @@ TELEGRAM_API_HASH=
 TELEGRAM_SESSION_STRING=           # generado con `npm run telegram:auth`
 
 WHATSAPP_WEBHOOK_VERIFY_TOKEN=     # el que configures en Meta App Dashboard
-WHATSAPP_BUSINESS_TOKEN=           # para enviar mensajes (todavia no implementado)
+WHATSAPP_BUSINESS_TOKEN=           # access token para enviar (Meta App Dashboard -> WhatsApp -> API Setup)
+WHATSAPP_PHONE_NUMBER_ID=          # el numero de telefono (Phone number ID) desde el que se envia
 
 GMAIL_1_BOOKING_URL=               # opcional — URL de la "Appointment schedule" de Calendar
 GMAIL_2_BOOKING_URL=               # de esa cuenta (se crea a mano en calendar.google.com, no
