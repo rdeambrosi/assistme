@@ -199,6 +199,7 @@ export interface QueueStats {
   pending: number;
   approved_today: number;
   skipped_today: number;
+  read_today: number;
 }
 
 export async function getQueueStats(): Promise<QueueStats> {
@@ -206,21 +207,32 @@ export async function getQueueStats(): Promise<QueueStats> {
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
 
-  const [{ count: pending }, { count: approvedToday }, { count: skippedToday }] = await Promise.all([
-    supabase.from('messages').select('*', { count: 'exact', head: true }).in('status', ['pending', 'drafted']),
-    supabase
-      .from('messages')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'approved')
-      .gte('updated_at', startOfDay.toISOString()),
-    supabase
-      .from('messages')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'skipped')
-      .gte('updated_at', startOfDay.toISOString()),
-  ]);
+  const [{ count: pending }, { count: approvedToday }, { count: skippedToday }, { count: readToday }] =
+    await Promise.all([
+      supabase.from('messages').select('*', { count: 'exact', head: true }).in('status', ['pending', 'drafted']),
+      supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'approved')
+        .gte('updated_at', startOfDay.toISOString()),
+      supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'skipped')
+        .gte('updated_at', startOfDay.toISOString()),
+      supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'read')
+        .gte('updated_at', startOfDay.toISOString()),
+    ]);
 
-  return { pending: pending ?? 0, approved_today: approvedToday ?? 0, skipped_today: skippedToday ?? 0 };
+  return {
+    pending: pending ?? 0,
+    approved_today: approvedToday ?? 0,
+    skipped_today: skippedToday ?? 0,
+    read_today: readToday ?? 0,
+  };
 }
 
 export async function updateDraftContent(messageId: string, draft: string): Promise<void> {

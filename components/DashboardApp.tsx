@@ -57,6 +57,7 @@ interface QueueStats {
   pending: number;
   approved_today: number;
   skipped_today: number;
+  read_today: number;
 }
 
 interface SkillSelection {
@@ -102,8 +103,15 @@ export default function DashboardApp() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null);
 
+  // Modo seleccion multiple de la cola ("Marcar leido"/"Descartar" en lote) —
+  // selectedGroupKeys es independiente de selectedGroupKey (el grupo abierto
+  // en el panel de detalle), son dos cosas distintas.
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedGroupKeys, setSelectedGroupKeys] = useState<Set<string>>(new Set());
+  const [topN, setTopN] = useState(7);
+
   const [items, setItems] = useState<QueueItem[]>([]);
-  const [stats, setStats] = useState<QueueStats>({ pending: 0, approved_today: 0, skipped_today: 0 });
+  const [stats, setStats] = useState<QueueStats>({ pending: 0, approved_today: 0, skipped_today: 0, read_today: 0 });
   const [skills, setSkills] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -172,6 +180,11 @@ export default function DashboardApp() {
     () => (selectedGroupKey ? items.filter((i) => groupKeyFor(i) === selectedGroupKey) : []),
     [items, selectedGroupKey]
   );
+  const filteredQueue = useMemo(
+    () => items.filter((item) => filter === "all" || uiChannel(item.channel) === filter),
+    [items, filter]
+  );
+  const groupedQueue = useMemo(() => groupQueue(filteredQueue), [filteredQueue]);
 
   function getSelection(id: string): SkillSelection {
     if (skillSelections[id]) return skillSelections[id];
@@ -267,7 +280,7 @@ export default function DashboardApp() {
     }
   }
 
-  async function setStatus(ids: string[], status: "approved" | "skipped") {
+  async function setStatus(ids: string[], status: "approved" | "skipped" | "read") {
     try {
       await Promise.all(
         ids.map((id) =>
@@ -285,6 +298,42 @@ export default function DashboardApp() {
     } catch (err) {
       alert(`No se pudo actualizar el mensaje: ${err instanceof Error ? err.message : String(err)}`);
     }
+  }
+
+  function toggleSelectionMode() {
+    setSelectionMode((on) => !on);
+    setSelectedGroupKeys(new Set());
+  }
+
+  function toggleGroupSelected(key: string) {
+    setSelectedGroupKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  // Preselecciona los primeros N grupos de la cola filtrada actual — no
+  // ejecuta ninguna accion todavia, solo tilda para que el usuario confirme
+  // con "Marcar leido"/"Descartar".
+  function selectTopN(n: number) {
+    setSelectedGroupKeys(new Set(groupedQueue.slice(0, n).map((g) => g.key)));
+  }
+
+  async function bulkSetStatus(status: "read" | "skipped") {
+    const targetGroups = groupedQueue.filter((g) => selectedGroupKeys.has(g.key));
+    const ids = targetGroups.flatMap((g) => g.messages.map((m) => m.id));
+    if (ids.length === 0) return;
+    const verb = status === "read" ? "marcar como leidos" : "descartar";
+    if (
+      targetGroups.length > 3 &&
+      !confirm(`¿Seguro que queres ${verb} ${targetGroups.length} mensajes/conversaciones?`)
+    ) {
+      return;
+    }
+    await setStatus(ids, status);
+    setSelectedGroupKeys(new Set());
   }
 
   // "Responder con audio": no es dictado literal del draft — Rafa le dice a
@@ -359,12 +408,6 @@ export default function DashboardApp() {
   const recMin = Math.floor(recSeconds / 60);
   const recSec = recSeconds % 60;
 
-  const filteredQueue = useMemo(
-    () => items.filter((item) => filter === "all" || uiChannel(item.channel) === filter),
-    [items, filter]
-  );
-  const groupedQueue = useMemo(() => groupQueue(filteredQueue), [filteredQueue]);
-
   function saveContactNotes(id: string, notes: string) {
     fetchJson(`/api/contacts/${id}`, {
       method: "PATCH",
@@ -425,6 +468,9 @@ export default function DashboardApp() {
           <div className="col" data-role="queue">
             <div className="col-header">
               <span className="col-title">Cola de revision</span>
+              <button className="select-toggle" onClick={toggleSelectionMode}>
+                {selectionMode ? "Cancelar" : "Seleccionar"}
+              </button>
             </div>
             <div className="filters">
               {(["all", "gmail", "telegram", "whatsapp"] as Filter[]).map((f) => (
@@ -437,6 +483,35 @@ export default function DashboardApp() {
                 </button>
               ))}
             </div>
+            {selectionMode && (
+              <div className="selection-bar">
+                <span className="selection-count">{selectedGroupKeys.size} seleccionados</span>
+                <input
+                  type="number"
+                  min={1}
+                  className="topn-input"
+                  value={topN}
+                  onChange={(e) => setTopN(Math.max(1, Number(e.target.value) || 1))}
+                />
+                <button className="chip" onClick={() => selectTopN(topN)}>
+                  Primeros {topN}
+                </button>
+                <button
+                  className="btn-regen"
+                  disabled={selectedGroupKeys.size === 0}
+                  onClick={() => bulkSetStatus("read")}
+                >
+                  Marcar leído
+                </button>
+                <button
+                  className="btn-regen bulk-discard"
+                  disabled={selectedGroupKeys.size === 0}
+                  onClick={() => bulkSetStatus("skipped")}
+                >
+                  Descartar
+                </button>
+              </div>
+            )}
             <div className="queue">
               {!loading && groupedQueue.length === 0 && (
                 <div className="draft-empty" style={{ padding: 24 }}>
@@ -447,9 +522,30 @@ export default function DashboardApp() {
                 const ch = uiChannel(group.channel);
                 const oldest = group.messages[0];
                 const latest = group.messages[group.messages.length - 1];
+                const isSelected = selectedGroupKeys.has(group.key);
                 return (
-                  <button key={group.key} className="queue-item" onClick={() => selectGroup(group)}>
+                  <div
+                    key={group.key}
+                    role="button"
+                    tabIndex={0}
+                    className={`queue-item${isSelected ? " selected" : ""}`}
+                    onClick={() => (selectionMode ? toggleGroupSelected(group.key) : selectGroup(group))}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter" && e.key !== " ") return;
+                      e.preventDefault();
+                      if (selectionMode) toggleGroupSelected(group.key);
+                      else selectGroup(group);
+                    }}
+                  >
                     <div className="qi-top">
+                      {selectionMode && (
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleGroupSelected(group.key)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      )}
                       <span className={`qi-channel ${ch}`}>
                         <span className={`dot ${ch}`} />
                         {channelLabel[ch]}
@@ -461,7 +557,7 @@ export default function DashboardApp() {
                       {group.messages.length > 1 && <span className="qi-count">{group.messages.length}</span>}
                     </span>
                     <span className="qi-snippet">{latest.content.slice(0, 160)}</span>
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -680,6 +776,10 @@ export default function DashboardApp() {
                   <div className="stat-row">
                     <span>Descartados hoy</span>
                     <span>{stats.skipped_today}</span>
+                  </div>
+                  <div className="stat-row">
+                    <span>Leídos hoy</span>
+                    <span>{stats.read_today}</span>
                   </div>
                 </div>
               </div>

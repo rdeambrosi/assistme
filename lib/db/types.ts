@@ -5,7 +5,7 @@
 
 export type Channel = 'gmail_1' | 'gmail_2' | 'gmail_3' | 'telegram' | 'whatsapp';
 export type MessageDirection = 'inbound' | 'outbound';
-export type MessageStatus = 'pending' | 'drafted' | 'approved' | 'sent' | 'skipped';
+export type MessageStatus = 'pending' | 'drafted' | 'approved' | 'sent' | 'skipped' | 'read';
 export type SkillGroup = 'tono' | 'contexto' | 'formato';
 export type SyncStatus = 'ok' | 'error';
 

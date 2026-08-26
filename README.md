@@ -36,7 +36,8 @@ comms-hub/
 ├── skills/{tono,contexto,formato}/*.md  # contenido de las skills seleccionables en la UI (placeholders, editar)
 └── supabase/migrations/
     ├── 0001_init.sql                     # schema completo
-    └── 0002_message_sender_name.sql      # messages.sender_name (quien escribio dentro de un grupo)
+    ├── 0002_message_sender_name.sql      # messages.sender_name (quien escribio dentro de un grupo)
+    └── 0003_message_status_read.sql      # status 'read' (accion masiva "Marcar leido" de la cola)
 ```
 
 ## Falta armar
