@@ -331,6 +331,18 @@ textarea {
   padding: 10px 16px 0;
   flex-shrink: 0;
   overflow-x: auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none;
+}
+.filters::-webkit-scrollbar {
+  display: none; /* Chrome/Safari — la barra se veia como un elemento de UI de mas */
+}
+.filters-sub {
+  padding-top: 0;
+  padding-bottom: 2px;
+}
+.filters-sub .chip {
+  color: var(--text-muted);
 }
 .chip {
   font-family: var(--mono);
@@ -416,8 +428,14 @@ textarea {
   width: 3px;
   background: var(--amber);
 }
-.qi-top input[type="checkbox"] {
-  margin-right: 2px;
+.queue-item.selectable {
+  padding-right: 40px; /* deja lugar al checkbox flotante sin tocar el texto */
+}
+.qi-select-checkbox {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
   flex-shrink: 0;
 }
 .qi-top {

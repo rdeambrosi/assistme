@@ -21,17 +21,28 @@ const AUTO_REFRESH_MS = 15 * 60 * 1000;
 
 type View = "queue" | "detail";
 type Tab = "draft" | "context";
-type Filter = "all" | Channel;
+// "email" = las 3 casillas de Gmail juntas — filtro separado de un Channel
+// puntual para que el chip "Email" pueda representar "cualquiera de las 3".
+type Filter = "all" | "email" | Channel;
 
-// Reemplaza el chip generico "Gmail" por las 3 casillas — sin esto no hay
-// forma de filtrar la cola por cual de las 3 mando el mensaje.
-const FILTER_CHIPS: { value: Filter; label: string }[] = [
+function isEmailFilter(filter: Filter): boolean {
+  return filter === "email" || (filter !== "all" && filter.startsWith("gmail"));
+}
+
+const MAIN_FILTER_CHIPS: { value: Filter; label: string }[] = [
   { value: "all", label: "Todos" },
+  { value: "email", label: "Email" },
+  { value: "telegram", label: channelLabel.telegram },
+  { value: "whatsapp", label: channelLabel.whatsapp },
+];
+
+// Sub-fila que aparece debajo al abrir el chip "Email" — elegir cual de las
+// 3 casillas (o las 3 juntas).
+const EMAIL_ACCOUNT_CHIPS: { value: Filter; label: string }[] = [
+  { value: "email", label: "Todos" },
   { value: "gmail_1", label: "#1 Personal" },
   { value: "gmail_2", label: "#2 Twin" },
   { value: "gmail_3", label: "#3 Belo" },
-  { value: "telegram", label: channelLabel.telegram },
-  { value: "whatsapp", label: channelLabel.whatsapp },
 ];
 
 interface QueueItem extends Message {
@@ -121,6 +132,7 @@ export default function DashboardApp() {
   const [view, setView] = useState<View>("queue");
   const [tab, setTab] = useState<Tab>("draft");
   const [filter, setFilter] = useState<Filter>("all");
+  const [emailFilterOpen, setEmailFilterOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null);
@@ -227,7 +239,12 @@ export default function DashboardApp() {
     [items, selectedGroupKey]
   );
   const filteredQueue = useMemo(
-    () => items.filter((item) => filter === "all" || item.channel === filter),
+    () =>
+      items.filter((item) => {
+        if (filter === "all") return true;
+        if (filter === "email") return item.channel.startsWith("gmail");
+        return item.channel === filter;
+      }),
     [items, filter]
   );
   const groupedQueue = useMemo(() => groupQueue(filteredQueue), [filteredQueue]);
@@ -540,16 +557,39 @@ export default function DashboardApp() {
               </div>
             </div>
             <div className="filters">
-              {FILTER_CHIPS.map(({ value, label }) => (
+              {MAIN_FILTER_CHIPS.map(({ value, label }) => (
                 <button
                   key={value}
-                  className={`chip${filter === value ? " active" : ""}`}
-                  onClick={() => setFilter(value)}
+                  className={`chip${(value === "email" ? isEmailFilter(filter) : filter === value) ? " active" : ""}`}
+                  onClick={() => {
+                    if (value === "email") {
+                      // Reabre la sub-fila si ya estaba filtrando por Email —
+                      // asi se puede cambiar de cuenta sin primero volver a Todos.
+                      setEmailFilterOpen((open) => !isEmailFilter(filter) || !open);
+                      setFilter("email");
+                      return;
+                    }
+                    setFilter(value);
+                    setEmailFilterOpen(false);
+                  }}
                 >
                   {label}
                 </button>
               ))}
             </div>
+            {emailFilterOpen && (
+              <div className="filters filters-sub">
+                {EMAIL_ACCOUNT_CHIPS.map(({ value, label }) => (
+                  <button
+                    key={value}
+                    className={`chip${filter === value ? " active" : ""}`}
+                    onClick={() => setFilter(value)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="search-row">
               <input
                 type="search"
@@ -607,7 +647,7 @@ export default function DashboardApp() {
                     key={group.key}
                     role="button"
                     tabIndex={0}
-                    className={`queue-item${isSelected ? " selected" : ""}`}
+                    className={`queue-item${isSelected ? " selected" : ""}${selectionMode ? " selectable" : ""}`}
                     onClick={() => (selectionMode ? toggleGroupSelected(group.key) : selectGroup(group))}
                     onKeyDown={(e) => {
                       if (e.key !== "Enter" && e.key !== " ") return;
@@ -616,15 +656,19 @@ export default function DashboardApp() {
                       else selectGroup(group);
                     }}
                   >
+                    {selectionMode && (
+                      // Posicionado aparte del flujo de qi-top a proposito —
+                      // si entra al flex normal, agrega una fila y empuja
+                      // cada mensaje hacia abajo al activar "Seleccionar".
+                      <input
+                        type="checkbox"
+                        className="qi-select-checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleGroupSelected(group.key)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    )}
                     <div className="qi-top">
-                      {selectionMode && (
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleGroupSelected(group.key)}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      )}
                       <span className={`qi-channel ${ch}`}>
                         <span className={`dot ${ch}`} />
                         {channelLabel[ch]}
