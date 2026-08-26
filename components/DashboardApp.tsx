@@ -81,6 +81,8 @@ export default function DashboardApp() {
   const [skillsPanelOpen, setSkillsPanelOpen] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [meetPanelOpen, setMeetPanelOpen] = useState(false);
+  const [meetDate, setMeetDate] = useState("");
+  const [meetTime, setMeetTime] = useState("15:00");
   const [contactsOpen, setContactsOpen] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [savedContactId, setSavedContactId] = useState<string | null>(null);
@@ -145,6 +147,10 @@ export default function DashboardApp() {
     stopRecording(true);
     setView("detail");
     setTab("draft");
+
+    const item = items.find((i) => i.id === id);
+    setMeetDate(item?.suggested_meeting_at ? item.suggested_meeting_at.slice(0, 10) : "");
+    setMeetTime(item?.suggested_meeting_at ? new Date(item.suggested_meeting_at).toISOString().slice(11, 16) : "15:00");
   }
 
   function toggleSkill(itemId: string, group: "tono" | "contexto" | "formato", id: string) {
@@ -476,16 +482,9 @@ export default function DashboardApp() {
                     <span>Se detecto intencion de reunion — proponer horario</span>
                   </button>
                   <div className={`meet-panel${meetPanelOpen ? " visible" : ""}`}>
-                    <input type="date" defaultValue="" />
-                    <input
-                      type="time"
-                      defaultValue={
-                        selectedItem.suggested_meeting_at
-                          ? new Date(selectedItem.suggested_meeting_at).toISOString().slice(11, 16)
-                          : "15:00"
-                      }
-                    />
-                    <MeetConfirmButton />
+                    <input type="date" value={meetDate} onChange={(e) => setMeetDate(e.target.value)} />
+                    <input type="time" value={meetTime} onChange={(e) => setMeetTime(e.target.value)} />
+                    <MeetConfirmButton messageId={selectedItem.id} date={meetDate} time={meetTime} />
                   </div>
                 </div>
 
@@ -574,18 +573,43 @@ export default function DashboardApp() {
   );
 }
 
-function MeetConfirmButton() {
-  const [label, setLabel] = useState("Crear evento + Meet");
+function MeetConfirmButton({ messageId, date, time }: { messageId: string; date: string; time: string }) {
+  const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [meetLink, setMeetLink] = useState<string | null>(null);
+
+  async function handleClick() {
+    if (!date || !time) {
+      alert("Elegí fecha y horario primero");
+      return;
+    }
+    setStatus("loading");
+    try {
+      const res = await fetch(`/api/messages/${messageId}/create-meeting`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date, time }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) throw new Error(json.error ?? "No se pudo crear el evento");
+      setMeetLink(json.meetLink ?? json.eventLink ?? null);
+      setStatus("idle");
+    } catch (err) {
+      setStatus("error");
+      alert(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  if (meetLink) {
+    return (
+      <a href={meetLink} target="_blank" rel="noreferrer" className="btn btn-approve" style={{ textAlign: "center" }}>
+        Ver evento creado ↗
+      </a>
+    );
+  }
+
   return (
-    <button
-      className="btn btn-approve"
-      onClick={() => {
-        // TODO: integracion real con Google Calendar (paso 8 del handoff) — por ahora es solo UI.
-        setLabel("Evento creado");
-        setTimeout(() => setLabel("Crear evento + Meet"), 1800);
-      }}
-    >
-      {label}
+    <button className="btn btn-approve" onClick={handleClick} disabled={status === "loading"}>
+      {status === "loading" ? "Creando…" : "Crear evento + Meet"}
     </button>
   );
 }
