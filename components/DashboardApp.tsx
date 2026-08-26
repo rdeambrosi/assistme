@@ -210,6 +210,19 @@ export default function DashboardApp() {
     });
   }
 
+  async function insertBookingLink(id: string) {
+    try {
+      const res = await fetchJson<{ url: string }>(`/api/messages/${id}/booking-link`);
+      setDrafts((prev) => {
+        const text = (prev[id] ? prev[id] + "\n\n" : "") + res.url;
+        saveDraftText(id, text);
+        return { ...prev, [id]: text };
+      });
+    } catch (err) {
+      alert(`No se pudo obtener el link de reserva: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
   async function setStatus(id: string, status: "approved" | "skipped") {
     try {
       await fetchJson(`/api/messages/${id}/status`, {
@@ -481,10 +494,17 @@ export default function DashboardApp() {
                     <IconCalendar />
                     <span>Se detecto intencion de reunion — proponer horario</span>
                   </button>
-                  <div className={`meet-panel${meetPanelOpen ? " visible" : ""}`}>
+                  <div className={`meet-panel${meetPanelOpen ? " visible" : ""}`} style={{ flexWrap: "wrap" }}>
                     <input type="date" value={meetDate} onChange={(e) => setMeetDate(e.target.value)} />
                     <input type="time" value={meetTime} onChange={(e) => setMeetTime(e.target.value)} />
                     <MeetConfirmButton messageId={selectedItem.id} date={meetDate} time={meetTime} />
+                    <button
+                      className="btn-regen"
+                      style={{ flex: "1 0 100%" }}
+                      onClick={() => insertBookingLink(selectedItem.id)}
+                    >
+                      Insertar link para que agenden ellos
+                    </button>
                   </div>
                 </div>
 

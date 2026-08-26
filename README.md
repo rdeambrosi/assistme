@@ -69,6 +69,10 @@ TELEGRAM_SESSION_STRING=           # generado con `npm run telegram:auth`
 
 WHATSAPP_WEBHOOK_VERIFY_TOKEN=     # el que configures en Meta App Dashboard
 WHATSAPP_BUSINESS_TOKEN=           # para enviar mensajes (todavia no implementado)
+
+GMAIL_1_BOOKING_URL=               # opcional — URL de la "Appointment schedule" de Calendar
+GMAIL_2_BOOKING_URL=               # de esa cuenta (se crea a mano en calendar.google.com, no
+GMAIL_3_BOOKING_URL=               # hay API para esto). Sin la env var, ese botón tira 404.
 ```
 
 3. Local: `vercel link` (una vez) → `vercel env pull .env.local` → `npm install && npm run dev`
