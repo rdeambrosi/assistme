@@ -10,6 +10,7 @@
 import { google, gmail_v1 } from 'googleapis';
 import type { Channel } from '@/lib/db/types';
 import { findOrCreateContactByChannel, getSyncState, insertRawMessage, updateSyncState } from '@/lib/db/client';
+import { serializeError } from '@/lib/api-error';
 
 const GMAIL_CHANNELS = ['gmail_1', 'gmail_2', 'gmail_3'] as const;
 export type GmailChannel = (typeof GMAIL_CHANNELS)[number];
@@ -204,18 +205,47 @@ export async function syncGmailAccount(channel: GmailChannel): Promise<GmailSync
   }
 }
 
-function serializeError(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  if (typeof err === 'object' && err !== null) {
-    const maybeMessage = (err as { message?: unknown }).message;
-    if (typeof maybeMessage === 'string') return maybeMessage;
-    try {
-      return JSON.stringify(err);
-    } catch {
-      return String(err);
-    }
-  }
-  return String(err);
+export interface SendReplyParams {
+  channel: GmailChannel;
+  threadId: string;
+  originalExternalId: string; // el msg.id de Gmail del mensaje que se esta respondiendo
+  toAddress: string;
+  subject: string;
+  body: string;
+}
+
+function base64UrlEncode(str: string): string {
+  return Buffer.from(str, 'utf-8').toString('base64url');
+}
+
+export async function sendGmailReply(params: SendReplyParams): Promise<void> {
+  const gmail = gmailClientFor(params.channel);
+
+  // El In-Reply-To/References tienen que llevar el Message-Id RFC822 del
+  // original (distinto del id interno de Gmail que usamos como external_id),
+  // para que la respuesta quede en el mismo hilo del lado del destinatario.
+  const original = await gmail.users.messages.get({
+    userId: 'me',
+    id: params.originalExternalId,
+    format: 'metadata',
+    metadataHeaders: ['Message-Id'],
+  });
+  const originalMessageId = original.data.payload?.headers?.find(
+    (h) => h.name?.toLowerCase() === 'message-id'
+  )?.value;
+
+  const headers = [
+    `To: ${params.toAddress}`,
+    `Subject: ${params.subject.startsWith('Re:') ? params.subject : `Re: ${params.subject}`}`,
+    ...(originalMessageId ? [`In-Reply-To: ${originalMessageId}`, `References: ${originalMessageId}`] : []),
+    'Content-Type: text/plain; charset="UTF-8"',
+  ].join('\r\n');
+  const raw = base64UrlEncode(`${headers}\r\n\r\n${params.body}`);
+
+  await gmail.users.messages.send({
+    userId: 'me',
+    requestBody: { raw, threadId: params.threadId },
+  });
 }
 
 export async function syncAllGmailAccounts(): Promise<GmailSyncResult[]> {

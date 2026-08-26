@@ -1,22 +1,37 @@
 // POST { status: 'approved' | 'skipped' | 'read' } — botones Aprobar/Descartar
-// y la accion masiva "Marcar leido" de la cola. 'approved' todavia no dispara
-// el envio real (eso es un paso futuro del handoff, por conector); por ahora
-// solo marca el estado.
+// y la accion masiva "Marcar leido" de la cola.
+// 'approved' dispara el envio real por el canal que corresponda (Gmail
+// reply, mensaje de Telegram, o WhatsApp) y, si sale bien, deja el mensaje
+// en 'sent'. Si el envio falla, el mensaje se queda como estaba (drafted)
+// para que se pueda reintentar o editar el draft, en vez de marcarlo
+// "aprobado" con una mentira.
 import { NextRequest, NextResponse } from 'next/server';
-import { setMessageStatus } from '@/lib/db/client';
-import type { MessageStatus } from '@/lib/db/types';
+import { getMessage, setMessageStatus } from '@/lib/db/client';
+import { sendApprovedMessage } from '@/lib/send';
 import { serializeError } from '@/lib/api-error';
-
-const ALLOWED: MessageStatus[] = ['approved', 'skipped', 'read'];
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
     const body = await req.json();
-    if (!ALLOWED.includes(body.status)) {
-      return NextResponse.json({ ok: false, error: `status debe ser uno de: ${ALLOWED.join(', ')}` }, { status: 400 });
+
+    if (body.status === 'skipped' || body.status === 'read') {
+      await setMessageStatus(id, body.status);
+      return NextResponse.json({ ok: true });
     }
-    await setMessageStatus(id, body.status);
+
+    if (body.status !== 'approved') {
+      return NextResponse.json(
+        { ok: false, error: 'status debe ser "approved", "skipped" o "read"' },
+        { status: 400 }
+      );
+    }
+
+    const message = await getMessage(id);
+    if (!message) return NextResponse.json({ ok: false, error: 'Mensaje no encontrado' }, { status: 404 });
+
+    await sendApprovedMessage(message);
+    await setMessageStatus(id, 'sent');
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error(`[/api/messages/${id}/status] failed:`, err);

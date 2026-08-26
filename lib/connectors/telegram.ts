@@ -44,6 +44,16 @@ function getClient(): TelegramClient {
   return new TelegramClient(new StringSession(sessionString), apiId, apiHash, { connectionRetries: 3 });
 }
 
+export async function sendTelegramMessage(chatId: number, text: string): Promise<void> {
+  const client = getClient();
+  await client.connect();
+  try {
+    await client.sendMessage(chatId, { message: text });
+  } finally {
+    await client.disconnect();
+  }
+}
+
 export interface TelegramSyncResult {
   dialogsProcessed: number;
   imported: number;
