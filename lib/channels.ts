@@ -14,6 +14,19 @@ export const channelLabel: Record<UiChannel, string> = {
   whatsapp: 'WhatsApp',
 };
 
+// Las 3 casillas de Gmail (ver README: GMAIL_1/2/3_REFRESH_TOKEN) — sin esto
+// la UI las trata a todas como "Gmail" y no hay forma de saber de cual vino
+// un mensaje en particular.
+export const GMAIL_ACCOUNT_LABEL: Partial<Record<Channel, string>> = {
+  gmail_1: '#1 Personal',
+  gmail_2: '#2 Twin',
+  gmail_3: '#3 Belo',
+};
+
+export function gmailAccountLabel(channel: Channel): string | null {
+  return GMAIL_ACCOUNT_LABEL[channel] ?? null;
+}
+
 export function formatWait(receivedAt: string): string {
   const ms = Date.now() - new Date(receivedAt).getTime();
   const minutes = Math.floor(ms / 60000);

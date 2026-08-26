@@ -424,7 +424,6 @@ textarea {
   display: flex;
   align-items: center;
   gap: 8px;
-  justify-content: space-between;
 }
 .qi-channel {
   display: flex;
@@ -448,6 +447,15 @@ textarea {
   font-family: var(--mono);
   font-size: 10px;
   color: var(--text-muted);
+  margin-left: auto;
+}
+.qi-account {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--bg3);
+  padding: 1px 6px;
+  border-radius: 4px;
 }
 .qi-name {
   font-size: 14px;
@@ -710,6 +718,25 @@ textarea {
   background: transparent;
   border-color: var(--border);
   color: var(--text-muted);
+}
+.btn-mark-read {
+  flex: 0 0 auto;
+  width: 33%;
+  max-width: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+.btn-mark-read svg {
+  width: 16px;
+  height: 16px;
+}
+.btn-mark-read:hover {
+  border-color: var(--green);
+  color: var(--green);
 }
 
 /* Context */

@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Contact, Message, Skill } from "@/lib/db/types";
-import { channelLabel, formatWait, uiChannel, type UiChannel } from "@/lib/channels";
+import type { Channel, Contact, Message, Skill } from "@/lib/db/types";
+import { channelLabel, formatWait, gmailAccountLabel, uiChannel } from "@/lib/channels";
 import {
   IconBack,
   IconCalendar,
   IconChevron,
+  IconCheck,
   IconContacts,
   IconMic,
   IconRefresh,
@@ -20,7 +21,18 @@ const AUTO_REFRESH_MS = 15 * 60 * 1000;
 
 type View = "queue" | "detail";
 type Tab = "draft" | "context";
-type Filter = "all" | UiChannel;
+type Filter = "all" | Channel;
+
+// Reemplaza el chip generico "Gmail" por las 3 casillas — sin esto no hay
+// forma de filtrar la cola por cual de las 3 mando el mensaje.
+const FILTER_CHIPS: { value: Filter; label: string }[] = [
+  { value: "all", label: "Todos" },
+  { value: "gmail_1", label: "#1 Personal" },
+  { value: "gmail_2", label: "#2 Twin" },
+  { value: "gmail_3", label: "#3 Belo" },
+  { value: "telegram", label: channelLabel.telegram },
+  { value: "whatsapp", label: channelLabel.whatsapp },
+];
 
 interface QueueItem extends Message {
   contact: Contact | null;
@@ -215,7 +227,7 @@ export default function DashboardApp() {
     [items, selectedGroupKey]
   );
   const filteredQueue = useMemo(
-    () => items.filter((item) => filter === "all" || uiChannel(item.channel) === filter),
+    () => items.filter((item) => filter === "all" || item.channel === filter),
     [items, filter]
   );
   const groupedQueue = useMemo(() => groupQueue(filteredQueue), [filteredQueue]);
@@ -274,7 +286,7 @@ export default function DashboardApp() {
     return (sel.tono ? 1 : 0) + sel.contexto.length + (sel.formato ? 1 : 0);
   }
 
-  async function regenDraft() {
+  async function regenDraft(instruction?: string) {
     if (!selectedId) return;
     const sel = getSelection(selectedId);
     setRegenerating(true);
@@ -284,7 +296,7 @@ export default function DashboardApp() {
       }>(`/api/messages/${selectedId}/regenerate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(sel),
+        body: JSON.stringify(instruction ? { ...sel, instruction } : sel),
       });
       setDrafts((prev) => ({ ...prev, [selectedId]: res.result.draft }));
       setItems((prev) =>
@@ -528,13 +540,13 @@ export default function DashboardApp() {
               </div>
             </div>
             <div className="filters">
-              {(["all", "gmail", "telegram", "whatsapp"] as Filter[]).map((f) => (
+              {FILTER_CHIPS.map(({ value, label }) => (
                 <button
-                  key={f}
-                  className={`chip${filter === f ? " active" : ""}`}
-                  onClick={() => setFilter(f)}
+                  key={value}
+                  className={`chip${filter === value ? " active" : ""}`}
+                  onClick={() => setFilter(value)}
                 >
-                  {f === "all" ? "Todos" : channelLabel[f as UiChannel]}
+                  {label}
                 </button>
               ))}
             </div>
@@ -617,6 +629,9 @@ export default function DashboardApp() {
                         <span className={`dot ${ch}`} />
                         {channelLabel[ch]}
                       </span>
+                      {gmailAccountLabel(group.channel) && (
+                        <span className="qi-account">{gmailAccountLabel(group.channel)}</span>
+                      )}
                       <span className="qi-wait">hace {formatWait(latest.received_at)}</span>
                     </div>
                     <span className="qi-name">
@@ -719,7 +734,7 @@ export default function DashboardApp() {
                       );
                     })}
                     <div className="skills-panel-footer">
-                      <button className="btn-regen" onClick={regenDraft} disabled={regenerating}>
+                      <button className="btn-regen" onClick={() => regenDraft()} disabled={regenerating}>
                         {regenerating ? "Regenerando…" : "Regenerar draft"}
                       </button>
                     </div>
@@ -760,6 +775,15 @@ export default function DashboardApp() {
                       </>
                     )}
                   </button>
+                  <button
+                    className="btn-audio"
+                    onClick={() => regenDraft(drafts[selectedItem.id])}
+                    disabled={regenerating || !drafts[selectedItem.id]?.trim()}
+                    title="Reescribir el draft usando lo que ya escribiste como instruccion"
+                  >
+                    <IconRefresh />
+                    <span>{regenerating ? "Regenerando…" : "Regenerar"}</span>
+                  </button>
                 </div>
 
                 <div className={`meet-suggestion${selectedItem.meeting_intent ? " visible" : ""}`}>
@@ -796,6 +820,14 @@ export default function DashboardApp() {
                     onClick={() => setStatus(selectedGroupMessages.map((m) => m.id), "skipped")}
                   >
                     Descartar
+                  </button>
+                  <button
+                    className="btn btn-mark-read"
+                    onClick={() => setStatus(selectedGroupMessages.map((m) => m.id), "read")}
+                    title="Marcar leído"
+                    aria-label="Marcar leído"
+                  >
+                    <IconCheck />
                   </button>
                 </div>
               </div>
