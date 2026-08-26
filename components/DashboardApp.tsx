@@ -85,6 +85,27 @@ function groupQueue(items: QueueItem[]): QueueGroup[] {
   return result;
 }
 
+// Filtro de canal + busqueda + agrupamiento, en un solo lugar — se usa tanto
+// para lo que se ve en pantalla (useMemo) como para calcular a que grupo
+// saltar despues de aprobar/descartar/marcar leido sin esperar al proximo
+// render (ver setStatus).
+function buildVisibleQueue(items: QueueItem[], filter: Filter, search: string): QueueGroup[] {
+  const filteredByChannel = items.filter((item) => {
+    if (filter === "all") return true;
+    if (filter === "email") return item.channel.startsWith("gmail");
+    return item.channel === filter;
+  });
+  const grouped = groupQueue(filteredByChannel);
+  const q = search.trim().toLowerCase();
+  if (!q) return grouped;
+  return grouped.filter((g) => {
+    if (g.contact?.name?.toLowerCase().includes(q)) return true;
+    // El titulo/asunto de cada mensaje es su primera linea (el subject de
+    // Gmail viene concatenado como `subject\n\nbody`, ver connectors/gmail.ts).
+    return g.messages.some((m) => m.content.split("\n")[0].toLowerCase().includes(q));
+  });
+}
+
 interface QueueStats {
   pending: number;
   approved_today: number;
@@ -169,7 +190,11 @@ export default function DashboardApp() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
-  const loadQueue = useCallback(async () => {
+  // Devuelve los items recien cargados (no solo los deja en el state) —
+  // setStatus los necesita al toque para calcular a que grupo saltar, y
+  // esperar al proximo render despues de un setItems seria una vuelta
+  // de mas.
+  const loadQueue = useCallback(async (): Promise<QueueItem[] | null> => {
     try {
       const res = await fetchJson<{ items: QueueItem[]; stats: QueueStats }>("/api/queue");
       setItems(res.items);
@@ -182,8 +207,10 @@ export default function DashboardApp() {
         return next;
       });
       setLoadError(null);
+      return res.items;
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : String(err));
+      return null;
     } finally {
       setLoading(false);
     }
@@ -238,26 +265,7 @@ export default function DashboardApp() {
     () => (selectedGroupKey ? items.filter((i) => groupKeyFor(i) === selectedGroupKey) : []),
     [items, selectedGroupKey]
   );
-  const filteredQueue = useMemo(
-    () =>
-      items.filter((item) => {
-        if (filter === "all") return true;
-        if (filter === "email") return item.channel.startsWith("gmail");
-        return item.channel === filter;
-      }),
-    [items, filter]
-  );
-  const groupedQueue = useMemo(() => groupQueue(filteredQueue), [filteredQueue]);
-  const visibleQueue = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return groupedQueue;
-    return groupedQueue.filter((g) => {
-      if (g.contact?.name?.toLowerCase().includes(q)) return true;
-      // El titulo/asunto de cada mensaje es su primera linea (el subject de
-      // Gmail viene concatenado como `subject\n\nbody`, ver connectors/gmail.ts).
-      return g.messages.some((m) => m.content.split("\n")[0].toLowerCase().includes(q));
-    });
-  }, [groupedQueue, search]);
+  const visibleQueue = useMemo(() => buildVisibleQueue(items, filter, search), [items, filter, search]);
 
   function getSelection(id: string): SkillSelection {
     if (skillSelections[id]) return skillSelections[id];
@@ -354,6 +362,13 @@ export default function DashboardApp() {
   }
 
   async function setStatus(ids: string[], status: "approved" | "skipped" | "read") {
+    // Si esto viene de Aprobar/Descartar/Marcar leido con un grupo abierto en
+    // el panel de detalle, guardamos su posicion en la cola visible ANTES de
+    // tocar nada — despues de la accion ese grupo ya no esta, y el que ocupa
+    // el mismo lugar es "el siguiente" (bulkSetStatus no tiene un grupo
+    // abierto, asi que ahi esto no aplica y se comporta como antes).
+    const currentGroupKey = selectedGroupKey;
+    const prevIndex = currentGroupKey ? visibleQueue.findIndex((g) => g.key === currentGroupKey) : -1;
     try {
       await Promise.all(
         ids.map((id) =>
@@ -364,10 +379,19 @@ export default function DashboardApp() {
           })
         )
       );
+      const freshItems = await loadQueue();
+      if (currentGroupKey && freshItems) {
+        const nextVisible = buildVisibleQueue(freshItems, filter, search);
+        const nextGroup =
+          nextVisible.length === 0 ? null : nextVisible[Math.min(Math.max(prevIndex, 0), nextVisible.length - 1)];
+        if (nextGroup) {
+          selectGroup(nextGroup);
+          return;
+        }
+      }
       setSelectedId(null);
       setSelectedGroupKey(null);
       setView("queue");
-      await loadQueue();
     } catch (err) {
       alert(`No se pudo actualizar el mensaje: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -395,7 +419,7 @@ export default function DashboardApp() {
   }
 
   async function bulkSetStatus(status: "read" | "skipped") {
-    const targetGroups = groupedQueue.filter((g) => selectedGroupKeys.has(g.key));
+    const targetGroups = visibleQueue.filter((g) => selectedGroupKeys.has(g.key));
     const ids = targetGroups.flatMap((g) => g.messages.map((m) => m.id));
     if (ids.length === 0) return;
     const verb = status === "read" ? "marcar como leidos" : "descartar";
