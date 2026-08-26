@@ -11,6 +11,15 @@ import type { Channel } from '@/lib/db/types';
 // cuenta de Google propia — caen en esta por default.
 const DEFAULT_CALENDAR_CHANNEL: GmailChannel = 'gmail_1';
 
+// URL de la "Appointment schedule" (pagina de reserva) de la cuenta que
+// corresponda — no se puede crear via API, solo leer la que ya existe
+// (GMAIL_N_BOOKING_URL). Usado tanto por /api/messages/[id]/booking-link
+// como por el draft de Claude (para que pueda ofrecerlo sin inventar una URL).
+export function getBookingUrl(channel: Channel): string | null {
+  const gmailChannel = isGmailChannel(channel) ? channel : DEFAULT_CALENDAR_CHANNEL;
+  return process.env[`${gmailChannel.toUpperCase()}_BOOKING_URL`] ?? null;
+}
+
 function getClient(channel: Channel): calendar_v3.Calendar {
   const gmailChannel = isGmailChannel(channel) ? channel : DEFAULT_CALENDAR_CHANNEL;
 

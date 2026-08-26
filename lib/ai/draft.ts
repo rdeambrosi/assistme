@@ -20,6 +20,7 @@ import {
 } from '@/lib/db/client';
 import { readSkillContent } from '@/lib/ai/skills';
 import { embed } from '@/lib/ai/embeddings';
+import { getBookingUrl } from '@/lib/connectors/calendar';
 
 const DraftSchema = z.object({
   draft: z.string().describe('El texto de la respuesta, listo para enviar (el usuario lo puede editar despues).'),
@@ -77,9 +78,14 @@ async function buildPrompt(message: Message, instruction?: string): Promise<stri
     ? `\n\nRafa dicto por audio esta indicacion puntual de que decir en esta respuesta (es una instruccion para vos, no el texto final — redacta la respuesta con tus propias palabras siguiendola):\n"""\n${instruction}\n"""`
     : '';
 
+  const bookingUrl = getBookingUrl(message.channel);
+  const bookingSection = bookingUrl
+    ? `\n\nLink real de agenda de Rafa para este canal (usalo tal cual, sin modificarlo, unicamente si el mensaje o la instruccion piden compartir un link para que la otra persona elija un horario): ${bookingUrl}`
+    : '';
+
   return `Contacto: ${contactLabel}${contact?.context_notes ? `\nNotas sobre este contacto: ${contact.context_notes}` : ''}
 Canal: ${CHANNEL_LABEL[message.channel]}
-${skillsSection}${historySection}${instructionSection}
+${skillsSection}${historySection}${instructionSection}${bookingSection}
 
 Mensaje original recibido:
 """
@@ -100,7 +106,10 @@ Reglas:
 - El draft es solo el cuerpo de la respuesta, sin asunto de email ni firma.
 - Marca meeting_intent en true solo si el mensaje ORIGINAL busca coordinar una reunion/llamada/encuentro.
 - Si Rafa dio una indicacion puntual dictada por audio, priorizala por sobre el tono/contexto por defecto,
-  pero segui redactando vos la respuesta — no repitas la indicacion literal.`;
+  pero segui redactando vos la respuesta — no repitas la indicacion literal.
+- Nunca inventes un link de agenda/Calendly/Meet. Si te piden compartir uno y el prompt te dio un link real,
+  usa exactamente ese. Si no hay ninguno disponible, no pongas un placeholder ni una URL inventada — decile
+  a Rafa en el draft que coordine el horario por este medio en su lugar.`;
 
 export async function generateDraft(messageId: string, opts?: { instruction?: string }): Promise<DraftResult> {
   const message = await getMessage(messageId);

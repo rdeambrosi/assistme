@@ -5,10 +5,8 @@
 // como GMAIL_N_BOOKING_URL.
 import { NextRequest, NextResponse } from 'next/server';
 import { getMessage } from '@/lib/db/client';
-import { isGmailChannel } from '@/lib/connectors/gmail';
+import { getBookingUrl } from '@/lib/connectors/calendar';
 import { serializeError } from '@/lib/api-error';
-
-const DEFAULT_CHANNEL = 'gmail_1'; // Telegram/WhatsApp no tienen cuenta de Google propia
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -16,13 +14,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const message = await getMessage(id);
     if (!message) return NextResponse.json({ ok: false, error: 'Mensaje no encontrado' }, { status: 404 });
 
-    const gmailChannel = isGmailChannel(message.channel) ? message.channel : DEFAULT_CHANNEL;
-    const url = process.env[`${gmailChannel.toUpperCase()}_BOOKING_URL`];
+    const url = getBookingUrl(message.channel);
     if (!url) {
-      return NextResponse.json(
-        { ok: false, error: `Falta ${gmailChannel.toUpperCase()}_BOOKING_URL en el entorno` },
-        { status: 404 }
-      );
+      return NextResponse.json({ ok: false, error: 'No hay booking URL configurada para este canal' }, { status: 404 });
     }
 
     return NextResponse.json({ ok: true, url });
