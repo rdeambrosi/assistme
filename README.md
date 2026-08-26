@@ -55,6 +55,7 @@ Next.js simple, sin monorepo — `lib/db` reemplaza lo que antes era
 SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
 ANTHROPIC_API_KEY=
+DASHBOARD_PASSWORD=     # protege TODO el dashboard con un login simple — sin esto, la URL de Vercel queda publica
 ```
 
 4. `npm install && npm run dev` para levantar el dashboard en `localhost:3000`
